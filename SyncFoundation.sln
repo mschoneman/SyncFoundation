@@ -1,0 +1,91 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SyncFoundation.Client", "SyncFoundation.Client\SyncFoundation.Client.csproj", "{ED6F245B-9167-4338-AD16-F00F7D284356}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".nuget", ".nuget", "{F49EB4BD-55BC-4390-814B-74FF642A1609}"
+	ProjectSection(SolutionItems) = preProject
+		.nuget\NuGet.Config = .nuget\NuGet.Config
+		.nuget\NuGet.exe = .nuget\NuGet.exe
+		.nuget\NuGet.targets = .nuget\NuGet.targets
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SyncFoundation.Core", "SyncFoundation.Core\SyncFoundation.Core.csproj", "{147A3566-9DF3-4CCC-8384-C3FE6C677C7F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SyncFoundation.Server", "SyncFoundation.Server\SyncFoundation.Server.csproj", "{18AF9559-162F-496C-9A2F-8CCA45722C39}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Samples", "Samples", "{2549FEE5-1BA4-433A-8591-633FB9F3C236}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "BookSample", "BookSample", "{FC776616-B69C-4FA8-BCB8-BD7E4E51E582}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BookSample.Data", "Samples\BookSample\BookSample.Data\BookSample.Data.csproj", "{70C45A07-B586-491E-B0F5-33900AD5A1AA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BookSample.WebService", "Samples\BookSample\BookSample.WebService\BookSample.WebService.csproj", "{6BDEE654-9D5B-47AC-BCAB-11A994BCA0C2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BookSample.WpfApplication", "Samples\BookSample\BookSample.WpfApplication\BookSample.WpfApplication.csproj", "{9D1C6504-51DF-45EE-A472-B9D2DCFB13C5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BookSample.Test", "Samples\BookSample\BookSample.Test\BookSample.Test.csproj", "{300453CE-62D4-460B-A229-FD754301FBDE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BookSample.WebService.SelfHosted", "Samples\BookSample\BookSample.WebService.SelfHosted\BookSample.WebService.SelfHosted.csproj", "{6D03837A-A1B7-4BAE-B19A-68C8373BA12D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BookSample.Test.Console", "Samples\BookSample\BookSample.Test.Console\BookSample.Test.Console.csproj", "{BEB505C0-806C-4A30-A8D2-F31E39935C52}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{ED6F245B-9167-4338-AD16-F00F7D284356}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ED6F245B-9167-4338-AD16-F00F7D284356}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ED6F245B-9167-4338-AD16-F00F7D284356}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ED6F245B-9167-4338-AD16-F00F7D284356}.Release|Any CPU.Build.0 = Release|Any CPU
+		{147A3566-9DF3-4CCC-8384-C3FE6C677C7F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{147A3566-9DF3-4CCC-8384-C3FE6C677C7F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{147A3566-9DF3-4CCC-8384-C3FE6C677C7F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{147A3566-9DF3-4CCC-8384-C3FE6C677C7F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{18AF9559-162F-496C-9A2F-8CCA45722C39}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{18AF9559-162F-496C-9A2F-8CCA45722C39}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{18AF9559-162F-496C-9A2F-8CCA45722C39}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{18AF9559-162F-496C-9A2F-8CCA45722C39}.Release|Any CPU.Build.0 = Release|Any CPU
+		{70C45A07-B586-491E-B0F5-33900AD5A1AA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{70C45A07-B586-491E-B0F5-33900AD5A1AA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{70C45A07-B586-491E-B0F5-33900AD5A1AA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{70C45A07-B586-491E-B0F5-33900AD5A1AA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6BDEE654-9D5B-47AC-BCAB-11A994BCA0C2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6BDEE654-9D5B-47AC-BCAB-11A994BCA0C2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6BDEE654-9D5B-47AC-BCAB-11A994BCA0C2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6BDEE654-9D5B-47AC-BCAB-11A994BCA0C2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9D1C6504-51DF-45EE-A472-B9D2DCFB13C5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9D1C6504-51DF-45EE-A472-B9D2DCFB13C5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9D1C6504-51DF-45EE-A472-B9D2DCFB13C5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9D1C6504-51DF-45EE-A472-B9D2DCFB13C5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{300453CE-62D4-460B-A229-FD754301FBDE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{300453CE-62D4-460B-A229-FD754301FBDE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{300453CE-62D4-460B-A229-FD754301FBDE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{300453CE-62D4-460B-A229-FD754301FBDE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6D03837A-A1B7-4BAE-B19A-68C8373BA12D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6D03837A-A1B7-4BAE-B19A-68C8373BA12D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6D03837A-A1B7-4BAE-B19A-68C8373BA12D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6D03837A-A1B7-4BAE-B19A-68C8373BA12D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BEB505C0-806C-4A30-A8D2-F31E39935C52}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BEB505C0-806C-4A30-A8D2-F31E39935C52}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BEB505C0-806C-4A30-A8D2-F31E39935C52}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BEB505C0-806C-4A30-A8D2-F31E39935C52}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{FC776616-B69C-4FA8-BCB8-BD7E4E51E582} = {2549FEE5-1BA4-433A-8591-633FB9F3C236}
+		{70C45A07-B586-491E-B0F5-33900AD5A1AA} = {FC776616-B69C-4FA8-BCB8-BD7E4E51E582}
+		{6BDEE654-9D5B-47AC-BCAB-11A994BCA0C2} = {FC776616-B69C-4FA8-BCB8-BD7E4E51E582}
+		{9D1C6504-51DF-45EE-A472-B9D2DCFB13C5} = {FC776616-B69C-4FA8-BCB8-BD7E4E51E582}
+		{300453CE-62D4-460B-A229-FD754301FBDE} = {FC776616-B69C-4FA8-BCB8-BD7E4E51E582}
+		{6D03837A-A1B7-4BAE-B19A-68C8373BA12D} = {FC776616-B69C-4FA8-BCB8-BD7E4E51E582}
+		{BEB505C0-806C-4A30-A8D2-F31E39935C52} = {FC776616-B69C-4FA8-BCB8-BD7E4E51E582}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		EnterpriseLibraryConfigurationToolBinariesPath = packages\Unity.2.1.505.2\lib\NET35
+	EndGlobalSection
+EndGlobal

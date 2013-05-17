@@ -1,0 +1,23 @@
+﻿<Window x:Class="BookSample.WpfApplication.EditPeopleDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Edit People" Height="300" Width="300" ShowInTaskbar="False" ResizeMode="NoResize" WindowStartupLocation="CenterOwner">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <ListBox x:Name="peopleListBox" Grid.Row="0" DisplayMemberPath="Name" SelectionChanged="bookListBox_SelectionChanged">
+
+        </ListBox>
+        <StackPanel  Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center">
+            <Button x:Name="addButton" Margin="5" Content="Add" Click="addButton_Click" />
+            <Button x:Name="editButton" Margin="5" Content="Edit" Click="editButton_Click" IsEnabled="False" />
+            <Button x:Name="deleteButton" Margin="5" Content="Delete" Click="deleteButton_Click" IsEnabled="False" />
+        </StackPanel>
+        <StackPanel  Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center">
+            <Button x:Name="closeButton" Margin="5" Content="Close" Click="closeButton_Click" />
+        </StackPanel>
+    </Grid>
+</Window>
