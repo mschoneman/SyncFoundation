@@ -90,7 +90,7 @@ namespace BookSample.WpfApplication
 
         private void syncButton_Click(object sender, RoutedEventArgs e)
         {
-            var session = new SyncSession(new RepositorySyncableStoreAdapter(_repos), new ClientSyncSessionDbConnectionProdivder(), new Uri("http://localhost:53831/"), "test@example.com", "monkey");
+            var session = new SyncSession(new BookRepositorySyncableStoreAdapter(_repos), new ClientSyncSessionDbConnectionProdivder(), new Uri("http://localhost:53831/"), "test@example.com", "monkey");
             var progressWatcher = new Progress<SyncProgress>(reportProgress);
             session.SyncWithRemoteAsync(progressWatcher, CancellationToken.None).Wait();
             session.Close();
@@ -114,7 +114,7 @@ namespace BookSample.WpfApplication
 
         private void stateButton_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show(new RepositorySyncableStoreAdapter(_repos).GetDbState());
+            MessageBox.Show(new BookRepositorySyncableStoreAdapter(_repos).GetDbState());
         }
     }
 }

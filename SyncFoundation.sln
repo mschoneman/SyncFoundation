@@ -28,8 +28,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BookSample.Test", "Samples\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BookSample.WebService.SelfHosted", "Samples\BookSample\BookSample.WebService.SelfHosted\BookSample.WebService.SelfHosted.csproj", "{6D03837A-A1B7-4BAE-B19A-68C8373BA12D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BookSample.Test.Console", "Samples\BookSample\BookSample.Test.Console\BookSample.Test.Console.csproj", "{BEB505C0-806C-4A30-A8D2-F31E39935C52}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -68,10 +66,6 @@ Global
 		{6D03837A-A1B7-4BAE-B19A-68C8373BA12D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6D03837A-A1B7-4BAE-B19A-68C8373BA12D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6D03837A-A1B7-4BAE-B19A-68C8373BA12D}.Release|Any CPU.Build.0 = Release|Any CPU
-		{BEB505C0-806C-4A30-A8D2-F31E39935C52}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{BEB505C0-806C-4A30-A8D2-F31E39935C52}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{BEB505C0-806C-4A30-A8D2-F31E39935C52}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{BEB505C0-806C-4A30-A8D2-F31E39935C52}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -83,7 +77,6 @@ Global
 		{9D1C6504-51DF-45EE-A472-B9D2DCFB13C5} = {FC776616-B69C-4FA8-BCB8-BD7E4E51E582}
 		{300453CE-62D4-460B-A229-FD754301FBDE} = {FC776616-B69C-4FA8-BCB8-BD7E4E51E582}
 		{6D03837A-A1B7-4BAE-B19A-68C8373BA12D} = {FC776616-B69C-4FA8-BCB8-BD7E4E51E582}
-		{BEB505C0-806C-4A30-A8D2-F31E39935C52} = {FC776616-B69C-4FA8-BCB8-BD7E4E51E582}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		EnterpriseLibraryConfigurationToolBinariesPath = packages\Unity.2.1.505.2\lib\NET35

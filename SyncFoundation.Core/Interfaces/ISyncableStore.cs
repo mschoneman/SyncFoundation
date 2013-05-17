@@ -11,10 +11,10 @@ namespace SyncFoundation.Core.Interfaces
     {
         IEnumerable<string> GetItemTypes();
 
-        long IncrementLocalRepositoryTickCount();
+        long IncrementLocalRepilcaTickCount();
 
-        IEnumerable<IRepositoryInfo> GenerateLocalKnowledge();
-        IEnumerable<ISyncableItemInfo> LocateChangedItems(IEnumerable<IRepositoryInfo> remoteKnowledge);
+        IEnumerable<IReplicaInfo> GenerateLocalKnowledge();
+        IEnumerable<ISyncableItemInfo> LocateChangedItems(IEnumerable<IReplicaInfo> remoteKnowledge);
 
         ISyncableItemInfo LocateCurrentItemInfo(ISyncableItemInfo source);
 
@@ -24,7 +24,7 @@ namespace SyncFoundation.Core.Interfaces
 
         void SaveItemData(ISyncableItemInfo itemInfo, JObject itemData);
         void DeleteItem(ISyncableItemInfo itemInfo);
-        void UpdateLocalKnowledge(IEnumerable<IRepositoryInfo> remoteKnowledge);
+        void UpdateLocalKnowledge(IEnumerable<IReplicaInfo> remoteKnowledge);
 
         void AcceptChanges();
         void RejectChanges();

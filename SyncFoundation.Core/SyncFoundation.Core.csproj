@@ -52,11 +52,11 @@
     <Compile Include="DbCommandExtensions.cs" />
     <Compile Include="Interfaces\ISyncableItemDataBuilder.cs" />
     <Compile Include="Interfaces\ISyncableItemInfo.cs" />
-    <Compile Include="Interfaces\IRepositoryInfo.cs" />
+    <Compile Include="Interfaces\IReplicaInfo.cs" />
     <Compile Include="Interfaces\ISyncableStore.cs" />
     <Compile Include="Interfaces\ISyncSessionDbConnectionProvider.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="RepositoryInfo.cs" />
+    <Compile Include="ReplicaInfo.cs" />
     <Compile Include="SessionDbHelper.cs" />
     <Compile Include="SyncableItemInfo.cs" />
     <Compile Include="SyncStatus.cs" />

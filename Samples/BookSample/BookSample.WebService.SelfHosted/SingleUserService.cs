@@ -65,7 +65,7 @@ namespace BookSample.WebService
                 path = Path.Combine(@"..\..\..\BookSample.WebService\App_Data\", path);
 
             BookRepository repos = new BookRepository(path);
-            return new RepositorySyncableStoreAdapter(repos);
+            return new BookRepositorySyncableStoreAdapter(repos);
         }
     }
 }

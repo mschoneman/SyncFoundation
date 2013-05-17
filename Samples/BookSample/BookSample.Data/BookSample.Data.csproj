@@ -59,10 +59,10 @@
     <Compile Include="Interfaces\IPerson.cs" />
     <Compile Include="Model\Person.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Model\ReposItemBase.cs" />
-    <Compile Include="Model\ReposItemId.cs" />
+    <Compile Include="Model\ReplicaItemBase.cs" />
+    <Compile Include="Model\ReplicaItemId.cs" />
     <Compile Include="Sync\ISyncableTypeHandler.cs" />
-    <Compile Include="Sync\RepositorySyncableStoreAdapter.cs" />
+    <Compile Include="Sync\BookRepositorySyncableStoreAdapter.cs" />
     <Compile Include="Sync\TypeHandlers\BookSyncableTypeHandler.cs" />
     <Compile Include="Sync\TypeHandlers\PersonSyncableTypeHandler.cs" />
     <Compile Include="Sync\TypeHandlers\SyncableTypeHandlerBase.cs" />

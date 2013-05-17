@@ -8,24 +8,24 @@ using System.Threading.Tasks;
 
 namespace BookSample.Data.Model
 {
-    class Book : ReposItemBase, IBook
+    class Book : ReplicaItemBase, IBook
     {
-        internal Book(BookRepository repository, ReposItemId id, string title)
-            : base(repository, id)
+        internal Book(BookRepository repos, ReplicaItemId id, string title)
+            : base(repos, id)
         {
-            this._id.ItemType = ReposItemType.Book;
+            this._id.ItemType = ReplicaItemType.Book;
             this._title = title;
         }
 
-        internal Book(BookRepository repository, Book source)
-            : base(repository, source == null ? ReposItemId.Empty : source._id)
+        internal Book(BookRepository repos, Book source)
+            : base(repos, source == null ? ReplicaItemId.Empty : source._id)
         {
-            this._id.ItemType = ReposItemType.Book;
+            this._id.ItemType = ReplicaItemType.Book;
             copyItem(source);
             this._readOnly = false;
         }
 
-        internal override void copyItem(ReposItemBase src)
+        internal override void copyItem(ReplicaItemBase src)
         {
             Book source = (Book)src;
             copyItemBaseValues(source);
@@ -76,7 +76,7 @@ namespace BookSample.Data.Model
         {
             if (_authors == null)
             {
-                _authors = _repository.loadBookAuthors(_id.RowId);
+                _authors = _repos.loadBookAuthors(_id.RowId);
                 _authors.CollectionChanged += aurthors_CollectionChanged;
                 _readOnlyAuthors = new ReadOnlyObservableCollection<IPerson>(_authors);
             }

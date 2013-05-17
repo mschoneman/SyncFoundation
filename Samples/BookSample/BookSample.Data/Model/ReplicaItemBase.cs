@@ -9,22 +9,22 @@ using BookSample.Data.Interfaces;
 
 namespace BookSample.Data.Model
 {
-    abstract class ReposItemBase : IBaseItem
+    abstract class ReplicaItemBase : IBaseItem
     {
-        protected BookRepository _repository;
+        protected BookRepository _repos;
         protected bool _disposed;
         protected bool _modified;
         protected bool _readOnly = true;
 
-        protected ReposItemId _id;
+        protected ReplicaItemId _id;
 
-        public ReposItemBase(BookRepository repository, ReposItemId id)
+        public ReplicaItemBase(BookRepository repos, ReplicaItemId id)
         {
-            _repository = repository;
-            _id = new ReposItemId(id);
+            _repos = repos;
+            _id = new ReplicaItemId(id);
         }
 
-        public ReposItemId Id
+        public ReplicaItemId Id
         {
             get
             {
@@ -44,26 +44,26 @@ namespace BookSample.Data.Model
             }
         }
 
-        protected void copyItemBaseValues(ReposItemBase source)
+        protected void copyItemBaseValues(ReplicaItemBase source)
         {
             if (source != null)
             {
                 _id.RowId = source._id.RowId;
-                _id.CreationRepositoryLocalId = source._id.CreationRepositoryLocalId;
+                _id.CreationReplicaLocalId = source._id.CreationReplicaLocalId;
                 _id.CreationTickCount = source._id.CreationTickCount;
-                _id.ModificationRepositoryLocalId = source._id.ModificationRepositoryLocalId;
+                _id.ModificationReplicaLocalId = source._id.ModificationReplicaLocalId;
                 _id.ModificationTickCount = source._id.ModificationTickCount;
                 _id.ItemType = source._id.ItemType;
             }
         }
 
-        internal abstract void copyItem(ReposItemBase source);
+        internal abstract void copyItem(ReplicaItemBase source);
 
         /// <summary>
-        /// Gets a value indicating whether the <see cref="ReposItemBase"/> is read-only.
+        /// Gets a value indicating whether the <see cref="ReplicaItemBase"/> is read-only.
         /// </summary>
         /// <value>
-        /// <b>true</b> if the <see cref="ReposItemBase"/> is read-only; otherwise <b>false</b>.
+        /// <b>true</b> if the <see cref="ReplicaItemBase"/> is read-only; otherwise <b>false</b>.
         /// </value>
         public bool IsReadOnly
         {
@@ -96,7 +96,7 @@ namespace BookSample.Data.Model
         }
 
         /// <summary>
-        /// Releases the unmanaged resources used by the <see cref="ReposItemBase"/> and optionally releases the managed resources.
+        /// Releases the unmanaged resources used by the <see cref="ReplicaItemBase"/> and optionally releases the managed resources.
         /// </summary>
         /// <param name="disposing"><b>true</b> to release both managed and unmanaged resources; <b>false</b> to release only unmanaged resources.</param>
         protected virtual void Dispose(bool disposing)
@@ -108,19 +108,19 @@ namespace BookSample.Data.Model
             // Free other state (unmanged objects)
             if (!_disposed)
             {
-                //LibRepos.repos_release
+                //LibReplica.repos_release
             }
             // Set large fields to null
             _disposed = true;
         }
 
         /// <summary>
-        /// Allows an <see cref="ReposItemBase" /> to attempt to free resources and perform other cleanup operations before the <b>ReposItemBase</b> is reclaimed by garbage collection.
+        /// Allows an <see cref="ReplicaItemBase" /> to attempt to free resources and perform other cleanup operations before the <b>ReplicaItemBase</b> is reclaimed by garbage collection.
         /// </summary>
         /// <remarks>
         /// In C#, finalizers are expressed using destructor syntax.
         /// </remarks>
-        ~ReposItemBase()
+        ~ReplicaItemBase()
         {
             // Simply call Dispose(false)
             Dispose(false);

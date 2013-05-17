@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 namespace SyncFoundation.Core.Interfaces
 {
-    public interface IRepositoryInfo
+    public interface IReplicaInfo
     {
-        string RepositoryID { get; }
-        long RepositoryTickCount { get; }
+        string ReplicaId { get; }
+        long ReplicaTickCount { get; }
     }
 }

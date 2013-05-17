@@ -46,8 +46,8 @@ namespace BookSample.Data
         }
 
 
-        private const string itemIdFieldsForSelect = "_rowid_ AS RowID, CreatedRepos, CreatedTickCount, ModifiedRepos, ModifiedTickCount";
-        private const string itemIdFieldsAndForiegnKeysForCreate = "CreatedRepos INTEGER, CreatedTickCount INTEGER, ModifiedRepos INTEGER, ModifiedTickCount INTEGER, FOREIGN KEY(CreatedRepos) REFERENCES SyncRepositories(LocalReposID), FOREIGN KEY(ModifiedRepos) REFERENCES SyncRepositories(LocalReposID)";
+        private const string itemIdFieldsForSelect = "_rowid_ AS RowID, CreatedReplica, CreatedTickCount, ModifiedReplica, ModifiedTickCount";
+        private const string itemIdFieldsAndForiegnKeysForCreate = "CreatedReplica INTEGER, CreatedTickCount INTEGER, ModifiedReplica INTEGER, ModifiedTickCount INTEGER, FOREIGN KEY(CreatedReplica) REFERENCES SyncReplicaitories(LocalReplicaID), FOREIGN KEY(ModifiedReplica) REFERENCES SyncReplicaitories(LocalReplicaID)";
 
         #region SQLite "DbProviderFactory"
         private class SqliteClientFactory
@@ -107,38 +107,38 @@ namespace BookSample.Data
             return connection;
         }
 
-        private ReposItemId getReposItemIdFromDataReader(IDataReader reader)
+        private ReplicaItemId getReplicaItemIdFromDataReader(IDataReader reader)
         {
-            ReposItemId id = new ReposItemId();
+            ReplicaItemId id = new ReplicaItemId();
             id.RowId = Convert.ToInt64(reader["RowID"]);
-            id.CreationRepositoryLocalId = Convert.ToInt64(reader["CreatedRepos"]);
+            id.CreationReplicaLocalId = Convert.ToInt64(reader["CreatedReplica"]);
             id.CreationTickCount = Convert.ToInt64(reader["CreatedTickCount"]);
-            id.ModificationRepositoryLocalId = Convert.ToInt64(reader["ModifiedRepos"]);
+            id.ModificationReplicaLocalId = Convert.ToInt64(reader["ModifiedReplica"]);
             id.ModificationTickCount = Convert.ToInt64(reader["ModifiedTickCount"]);
             return id;
         }
 
-        private void insertTombstone(IDbConnection connection, ReposItemId id)
+        private void insertTombstone(IDbConnection connection, ReplicaItemId id)
         {
             IDbCommand command = connection.CreateCommand();
-            command.CommandText = "INSERT INTO Tombstones(ItemType, CreatedRepos, CreatedTickCount, ModifiedRepos, ModifiedTickCount, DeletionDateTime) VALUES (@ItemType,@CreatedRepos,@CreatedTick,0,@TickCount,datetime('now'))";
+            command.CommandText = "INSERT INTO Tombstones(ItemType, CreatedReplica, CreatedTickCount, ModifiedReplica, ModifiedTickCount, DeletionDateTime) VALUES (@ItemType,@CreatedReplica,@CreatedTick,0,@TickCount,datetime('now'))";
             command.AddParameter("@ItemType", id.ItemType);
-            command.AddParameter("@CreatedRepos", id.CreationRepositoryLocalId);
+            command.AddParameter("@CreatedReplica", id.CreationReplicaLocalId);
             command.AddParameter("@CreatedTick", id.CreationTickCount);
             command.AddParameter("@TickCount", incrementTickCount(connection, 0));
             command.ExecuteNonQuery();
         }
 
-        internal long incrementTickCount(IDbConnection connection, long localRepositoryId)
+        internal long incrementTickCount(IDbConnection connection, long localReplicaId)
         {
             IDbCommand command = connection.CreateCommand();
             command.CommandText = "SAVEPOINT UpdateTick";
             command.ExecuteNonQuery();
             try
             {
-                command.CommandText = String.Format("UPDATE SyncRepositories SET ReposTickCount = ReposTickCount + 1 WHERE LocalReposID = {0}", localRepositoryId);
+                command.CommandText = String.Format("UPDATE SyncReplicaitories SET ReplicaTickCount = ReplicaTickCount + 1 WHERE LocalReplicaID = {0}", localReplicaId);
                 command.ExecuteNonQuery();
-                command.CommandText = String.Format("SELECT ReposTickCount FROM SyncRepositories WHERE LocalReposID = {0}", localRepositoryId);
+                command.CommandText = String.Format("SELECT ReplicaTickCount FROM SyncReplicaitories WHERE LocalReplicaID = {0}", localReplicaId);
                 object o = command.ExecuteScalar();
                 return (int)o;
             }
@@ -170,12 +170,12 @@ namespace BookSample.Data
                     command.CommandText = String.Format("INSERT INTO DBInfo VALUES(1,'Schema', '', {0} )", 1);
                     command.ExecuteNonQuery();
 
-                    command.CommandText = "CREATE TABLE SyncRepositories(LocalReposID INTEGER PRIMARY KEY AUTOINCREMENT, GlobalReposID TEXT, ReposDesc TEXT, ReposName TEXT, ReposPassword TEXT, ReposTickCount INTEGER, ReposFailedLoginCount INTEGER);";
+                    command.CommandText = "CREATE TABLE SyncReplicaitories(LocalReplicaID INTEGER PRIMARY KEY AUTOINCREMENT, GlobalReplicaID TEXT, ReplicaDesc TEXT, ReplicaName TEXT, ReplicaPassword TEXT, ReplicaTickCount INTEGER, ReplicaFailedLoginCount INTEGER);";
                     command.ExecuteNonQuery();
 
-                    loadDefaultRepositories(trans);
+                    loadDefaultReplicaitories(trans);
 
-                    command.CommandText = "CREATE TABLE Tombstones(TombstoneID INTEGER PRIMARY KEY AUTOINCREMENT, ItemType INTEGER, CreatedRepos INTEGER, CreatedTickCount INTEGER, ModifiedRepos INTEGER, ModifiedTickCount INTEGER, DeletionDateTime DATETIME, FOREIGN KEY(CreatedRepos) REFERENCES SyncRepositories(LocalReposID), FOREIGN KEY(ModifiedRepos) REFERENCES SyncRepositories(LocalReposID) );";
+                    command.CommandText = "CREATE TABLE Tombstones(TombstoneID INTEGER PRIMARY KEY AUTOINCREMENT, ItemType INTEGER, CreatedReplica INTEGER, CreatedTickCount INTEGER, ModifiedReplica INTEGER, ModifiedTickCount INTEGER, DeletionDateTime DATETIME, FOREIGN KEY(CreatedReplica) REFERENCES SyncReplicaitories(LocalReplicaID), FOREIGN KEY(ModifiedReplica) REFERENCES SyncReplicaitories(LocalReplicaID) );";
                     command.ExecuteNonQuery();
 
                     command.CommandText = String.Format("CREATE TABLE People(PersonID INTEGER PRIMARY KEY AUTOINCREMENT, PersonName TEXT, {0});", itemIdFieldsAndForiegnKeysForCreate);
@@ -200,17 +200,17 @@ namespace BookSample.Data
             }
         }
 
-        private void loadDefaultRepositories(IDbTransaction trans)
+        private void loadDefaultReplicaitories(IDbTransaction trans)
         {
             IDbCommand command = trans.Connection.CreateCommand();
             command.Transaction = trans;
 
             Guid.NewGuid().ToString();
-            command.CommandText = String.Format("INSERT INTO SyncRepositories(LocalReposID,GlobalReposID,ReposTickCount,ReposDesc) VALUES(0,'{0}',{1},'')", Guid.NewGuid().ToString(), 0);
+            command.CommandText = String.Format("INSERT INTO SyncReplicaitories(LocalReplicaID,GlobalReplicaID,ReplicaTickCount,ReplicaDesc) VALUES(0,'{0}',{1},'')", Guid.NewGuid().ToString(), 0);
             command.ExecuteNonQuery();
 
-            /* default values belong to the default repository */
-            command.CommandText = String.Format("INSERT INTO SyncRepositories(LocalReposID,GlobalReposID,ReposTickCount,ReposDesc) VALUES(1,'DEFAULT_REPOS',{0},'Program Default Repository')", 0);
+            /* default values belong to the default replica */
+            command.CommandText = String.Format("INSERT INTO SyncReplicaitories(LocalReplicaID,GlobalReplicaID,ReplicaTickCount,ReplicaDesc) VALUES(1,'DEFAULT_REPOS',{0},'Program Default Replica')", 0);
             command.ExecuteNonQuery();
         }
 
@@ -239,7 +239,7 @@ namespace BookSample.Data
                 {
                     while (reader.Read())
                     {
-                        ReposItemId id = getReposItemIdFromDataReader(reader);
+                        ReplicaItemId id = getReplicaItemIdFromDataReader(reader);
                         string name = Convert.ToString(reader["PersonName"]);
                         Person item = new Person(this, id, name);
                         _allPeople.Add(item);
@@ -261,7 +261,7 @@ namespace BookSample.Data
                 {
                     while (reader.Read())
                     {
-                        ReposItemId id = getReposItemIdFromDataReader(reader);
+                        ReplicaItemId id = getReplicaItemIdFromDataReader(reader);
                         string title = Convert.ToString(reader["BookTitle"]);
                         Book item = new Book(this, id, title);
                         _allBooks.Add(item);
@@ -299,7 +299,7 @@ namespace BookSample.Data
             {
                 while (reader.Read())
                 {
-                    ReposItemId id = getReposItemIdFromDataReader(reader);
+                    ReplicaItemId id = getReplicaItemIdFromDataReader(reader);
                     string title = Convert.ToString(reader["BookTitle"]);
                     Book updatedBook = new Book(this, id, title);
 
@@ -323,12 +323,12 @@ namespace BookSample.Data
             }
         }
 
-        internal void removeBook(long createdLocalRepositoryId, long createdTickCount)
+        internal void removeBook(long createdLocalReplicaId, long createdTickCount)
         {
             foreach (IBook iItem in _allBooks)
             {
                 Book listItem = (Book)iItem;
-                if (listItem.Id.CreationRepositoryLocalId == createdLocalRepositoryId && listItem.Id.CreationTickCount == createdTickCount)
+                if (listItem.Id.CreationReplicaLocalId == createdLocalReplicaId && listItem.Id.CreationTickCount == createdTickCount)
                 {
                     _allBooks.Remove(listItem);
                     return;
@@ -344,7 +344,7 @@ namespace BookSample.Data
             {
                 while (reader.Read())
                 {
-                    ReposItemId id = getReposItemIdFromDataReader(reader);
+                    ReplicaItemId id = getReplicaItemIdFromDataReader(reader);
                     string name = Convert.ToString(reader["PersonName"]);
                     Person updatedPerson = new Person(this, id, name);
 
@@ -367,12 +367,12 @@ namespace BookSample.Data
             }
         }
 
-        internal void removePerson(long createdLocalRepositoryId, long createdTickCount)
+        internal void removePerson(long createdLocalReplicaId, long createdTickCount)
         {
             foreach (IPerson iItem in _allPeople)
             {
                 Person listItem = (Person)iItem;
-                if (listItem.Id.CreationRepositoryLocalId == createdLocalRepositoryId && listItem.Id.CreationTickCount == createdTickCount)
+                if (listItem.Id.CreationReplicaLocalId == createdLocalReplicaId && listItem.Id.CreationTickCount == createdTickCount)
                 {
                     _allPeople.Remove(listItem);
                     return;
@@ -448,27 +448,27 @@ namespace BookSample.Data
                     {
                         // Insert
                         command = connection.CreateCommand();
-                        command.CommandText = "INSERT INTO Books(BookTitle, CreatedRepos, CreatedTickCount, ModifiedRepos, ModifiedTickCount) VALUES (@BookTitle, 0, @TickCount, 0, @TickCount)";
+                        command.CommandText = "INSERT INTO Books(BookTitle, CreatedReplica, CreatedTickCount, ModifiedReplica, ModifiedTickCount) VALUES (@BookTitle, 0, @TickCount, 0, @TickCount)";
                         command.AddParameter("@BookTitle", bookToSave.Title);
                         command.AddParameter("@TickCount", tick);
                         command.ExecuteNonQuery();
                         bookToSave.Id.RowId = ((SqliteCommand)command).LastInsertRowID();
                         bookToSave.Id.CreationTickCount = tick;
-                        bookToSave.Id.CreationRepositoryLocalId = 0;
+                        bookToSave.Id.CreationReplicaLocalId = 0;
                         command.Parameters.Clear();
                     }
                     else
                     {
                         // Update
                         command = connection.CreateCommand();
-                        command.CommandText = "UPDATE Books SET ModifiedRepos=0, ModifiedTickCount=@TickCount, BookTitle=@BookTitle WHERE BookID=@RowID";
+                        command.CommandText = "UPDATE Books SET ModifiedReplica=0, ModifiedTickCount=@TickCount, BookTitle=@BookTitle WHERE BookID=@RowID";
                         command.AddParameter("@TickCount", tick);
                         command.AddParameter("@BookTitle", bookToSave.Title);
                         command.AddParameter("@RowID", bookToSave.Id.RowId);
                         command.ExecuteNonQuery();
                         command.Parameters.Clear();
                     }
-                    bookToSave.Id.ModificationRepositoryLocalId = 0;
+                    bookToSave.Id.ModificationReplicaLocalId = 0;
                     bookToSave.Id.ModificationTickCount = tick;
                     bookToSave.IsReadOnly = true;
                     bookToSave.IsModified = false;
@@ -602,27 +602,27 @@ namespace BookSample.Data
                     {
                         // Insert
                         command = connection.CreateCommand();
-                        command.CommandText = "INSERT INTO People(PersonName, CreatedRepos, CreatedTickCount, ModifiedRepos, ModifiedTickCount) VALUES (@PersonName, 0, @TickCount, 0, @TickCount)";
+                        command.CommandText = "INSERT INTO People(PersonName, CreatedReplica, CreatedTickCount, ModifiedReplica, ModifiedTickCount) VALUES (@PersonName, 0, @TickCount, 0, @TickCount)";
                         command.AddParameter("@PersonName", personToSave.Name);
                         command.AddParameter("@TickCount", tick);
                         command.ExecuteNonQuery();
                         personToSave.Id.RowId = ((SqliteCommand)command).LastInsertRowID();
                         personToSave.Id.CreationTickCount = tick;
-                        personToSave.Id.CreationRepositoryLocalId = 0;
+                        personToSave.Id.CreationReplicaLocalId = 0;
                         command.Parameters.Clear();
                     }
                     else
                     {
                         // Update
                         command = connection.CreateCommand();
-                        command.CommandText = "UPDATE People SET ModifiedRepos=0, ModifiedTickCount=@TickCount, PersonName=@PersonName WHERE PersonID=@RowID";
+                        command.CommandText = "UPDATE People SET ModifiedReplica=0, ModifiedTickCount=@TickCount, PersonName=@PersonName WHERE PersonID=@RowID";
                         command.AddParameter("@TickCount", tick);
                         command.AddParameter("@PersonName", personToSave.Name);
                         command.AddParameter("@RowID", personToSave.Id.RowId);
                         command.ExecuteNonQuery();
                         command.Parameters.Clear();
                     }
-                    personToSave.Id.ModificationRepositoryLocalId = 0;
+                    personToSave.Id.ModificationReplicaLocalId = 0;
                     personToSave.Id.ModificationTickCount = tick;
                     personToSave.IsReadOnly = true;
                     personToSave.IsModified = false;

@@ -21,8 +21,8 @@ namespace BookSample.Data.Sync
         void SaveItemData(ISyncableItemInfo itemInfo, JObject itemData);
         void DeleteItem(ISyncableItemInfo itemInfo);
 
-        void UpdateInRepos(ISyncableItemInfo itemInfo);
-        void RemoveFromRepos(ISyncableItemInfo itemInfo);
+        void UpdateInReplica(ISyncableItemInfo itemInfo);
+        void RemoveFromReplica(ISyncableItemInfo itemInfo);
 
         DuplicateStatus GetDuplicateStatus(JObject localItemData, JObject remoteItemData);
     }

@@ -7,9 +7,9 @@ using System.Threading.Tasks;
 
 namespace SyncFoundation.Core
 {
-    public class RepositoryInfo : IRepositoryInfo
+    public class ReplicaInfo : IReplicaInfo
     {
-        public string RepositoryID { get; set; }
-        public long RepositoryTickCount { get; set; }
+        public string ReplicaId { get; set; }
+        public long ReplicaTickCount { get; set; }
     }
 }

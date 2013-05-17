@@ -7,24 +7,24 @@ using System.Threading.Tasks;
 
 namespace BookSample.Data.Model
 {
-    class Person : ReposItemBase, IPerson
+    class Person : ReplicaItemBase, IPerson
     {
-        internal Person(BookRepository repository, ReposItemId id, string name)
-            : base(repository, id)
+        internal Person(BookRepository repos, ReplicaItemId id, string name)
+            : base(repos, id)
         {
-            this._id.ItemType = ReposItemType.Person;
+            this._id.ItemType = ReplicaItemType.Person;
             this._name = name;
         }
 
-        internal Person(BookRepository repository, Person source)
-            : base(repository, source == null ? ReposItemId.Empty : source._id)
+        internal Person(BookRepository repos, Person source)
+            : base(repos, source == null ? ReplicaItemId.Empty : source._id)
         {
-            this._id.ItemType = ReposItemType.Person;
+            this._id.ItemType = ReplicaItemType.Person;
             copyItem(source);
             this._readOnly = false;
         }
 
-        internal override void copyItem(ReposItemBase src)
+        internal override void copyItem(ReplicaItemBase src)
         {
             Person source = (Person)src;
             copyItemBaseValues(source);

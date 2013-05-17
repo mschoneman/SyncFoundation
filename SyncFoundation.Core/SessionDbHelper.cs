@@ -14,42 +14,42 @@ namespace SyncFoundation.Core
         public static void CreateSessionDbTables(IDbConnection connection)
         {
             IDbCommand command = connection.CreateCommand();
-            command.CommandText = "CREATE TABLE IF NOT EXISTS SyncItems(ItemID INTEGER PRIMARY KEY AUTOINCREMENT, SyncStatus INTEGER, ItemType INTEGER, GlobalCreatedRepos TEXT, CreatedTickCount INTEGER, GlobalModifiedRepos TEXT, ModifiedTickCount INTEGER, ItemData BLOB)";
+            command.CommandText = "CREATE TABLE IF NOT EXISTS SyncItems(ItemID INTEGER PRIMARY KEY AUTOINCREMENT, SyncStatus INTEGER, ItemType INTEGER, GlobalCreatedReplica TEXT, CreatedTickCount INTEGER, GlobalModifiedReplica TEXT, ModifiedTickCount INTEGER, ItemData BLOB)";
             command.ExecuteNonQuery();
 
             command.CommandText = "DELETE FROM SyncItems";
             command.ExecuteNonQuery();
 
-            command.CommandText = "CREATE TABLE IF NOT EXISTS RemoteKnowledge(RowID INTEGER PRIMARY KEY AUTOINCREMENT, GlobalReposID TEXT, ReposTickCount INTEGER)";
+            command.CommandText = "CREATE TABLE IF NOT EXISTS RemoteKnowledge(RowID INTEGER PRIMARY KEY AUTOINCREMENT, GlobalReplicaID TEXT, ReplicaTickCount INTEGER)";
             command.ExecuteNonQuery();
 
             command.CommandText = "DELETE FROM RemoteKnowledge";
             command.ExecuteNonQuery();
         }
 
-        public static void ResolveItemNoData(IDbConnection connection, ISyncableItemInfo itemInfo, SyncStatus resolvedStatus, IRepositoryInfo modifiedRepos)
+        public static void ResolveItemNoData(IDbConnection connection, ISyncableItemInfo itemInfo, SyncStatus resolvedStatus, IReplicaInfo modifiedReplica)
         {
             IDbCommand command = connection.CreateCommand();
-            command.CommandText = "UPDATE SyncItems SET SyncStatus=@SyncStatus, GlobalModifiedRepos=@ModifiedRepos, ModifiedTickCount=@ModifiedTick WHERE GlobalCreatedRepos=@CreatedRepos AND CreatedTickCount=@CreatedTick AND ItemType=@ItemType";
+            command.CommandText = "UPDATE SyncItems SET SyncStatus=@SyncStatus, GlobalModifiedReplica=@ModifiedReplica, ModifiedTickCount=@ModifiedTick WHERE GlobalCreatedReplica=@CreatedReplica AND CreatedTickCount=@CreatedTick AND ItemType=@ItemType";
             command.AddParameter("@SyncStatus", resolvedStatus);
             command.AddParameter("@ItemType", itemInfo.ItemType);
-            command.AddParameter("@CreatedRepos", itemInfo.Created.RepositoryID);
-            command.AddParameter("@CreatedTick", itemInfo.Created.RepositoryTickCount);
-            command.AddParameter("@ModifiedRepos", modifiedRepos.RepositoryID);
-            command.AddParameter("@ModifiedTick", modifiedRepos.RepositoryTickCount);
+            command.AddParameter("@CreatedReplica", itemInfo.Created.ReplicaId);
+            command.AddParameter("@CreatedTick", itemInfo.Created.ReplicaTickCount);
+            command.AddParameter("@ModifiedReplica", modifiedReplica.ReplicaId);
+            command.AddParameter("@ModifiedTick", modifiedReplica.ReplicaTickCount);
             command.ExecuteNonQuery();
         }
 
-        public static void ResolveItemWithData(IDbConnection connection, ISyncableItemInfo itemInfo, SyncStatus resolvedStatus, IRepositoryInfo modifiedRepos, JObject itemData)
+        public static void ResolveItemWithData(IDbConnection connection, ISyncableItemInfo itemInfo, SyncStatus resolvedStatus, IReplicaInfo modifiedReplica, JObject itemData)
         {
             IDbCommand command = connection.CreateCommand();
-            command.CommandText = "UPDATE SyncItems SET SyncStatus=@SyncStatus, GlobalModifiedRepos=@ModifiedRepos, ModifiedTickCount=@ModifiedTick, ItemData=@ItemData WHERE GlobalCreatedRepos=@CreatedRepos AND CreatedTickCount=@CreatedTick AND ItemType=@ItemType";
+            command.CommandText = "UPDATE SyncItems SET SyncStatus=@SyncStatus, GlobalModifiedReplica=@ModifiedReplica, ModifiedTickCount=@ModifiedTick, ItemData=@ItemData WHERE GlobalCreatedReplica=@CreatedReplica AND CreatedTickCount=@CreatedTick AND ItemType=@ItemType";
             command.AddParameter("@SyncStatus", resolvedStatus);
             command.AddParameter("@ItemType", itemInfo.ItemType);
-            command.AddParameter("@CreatedRepos", itemInfo.Created.RepositoryID);
-            command.AddParameter("@CreatedTick", itemInfo.Created.RepositoryTickCount);
-            command.AddParameter("@ModifiedRepos", modifiedRepos.RepositoryID);
-            command.AddParameter("@ModifiedTick", modifiedRepos.RepositoryTickCount);
+            command.AddParameter("@CreatedReplica", itemInfo.Created.ReplicaId);
+            command.AddParameter("@CreatedTick", itemInfo.Created.ReplicaTickCount);
+            command.AddParameter("@ModifiedReplica", modifiedReplica.ReplicaId);
+            command.AddParameter("@ModifiedTick", modifiedReplica.ReplicaTickCount);
             command.AddParameter("@ItemData", itemData.ToString());
             command.ExecuteNonQuery();
         }
@@ -57,13 +57,13 @@ namespace SyncFoundation.Core
         public static void SaveItemData(IDbConnection connection, ISyncableItemInfo remoteSyncableItemInfo, SyncStatus status, JObject data)
         {
             IDbCommand command = connection.CreateCommand();
-            command.CommandText = "INSERT INTO SyncItems(SyncStatus, ItemType, GlobalCreatedRepos, CreatedTickCount, GlobalModifiedRepos, ModifiedTickCount, ItemData) VALUES(@SyncStatus,@ItemType,@CreatedRepos,@CreatedTick,@ModifiedRepos,@ModifiedTick,@ItemData)";
+            command.CommandText = "INSERT INTO SyncItems(SyncStatus, ItemType, GlobalCreatedReplica, CreatedTickCount, GlobalModifiedReplica, ModifiedTickCount, ItemData) VALUES(@SyncStatus,@ItemType,@CreatedReplica,@CreatedTick,@ModifiedReplica,@ModifiedTick,@ItemData)";
             command.AddParameter("@SyncStatus", status);
             command.AddParameter("@ItemType", remoteSyncableItemInfo.ItemType);
-            command.AddParameter("@CreatedRepos", remoteSyncableItemInfo.Created.RepositoryID);
-            command.AddParameter("@CreatedTick", remoteSyncableItemInfo.Created.RepositoryTickCount);
-            command.AddParameter("@ModifiedRepos", remoteSyncableItemInfo.Modified.RepositoryID);
-            command.AddParameter("@ModifiedTick", remoteSyncableItemInfo.Modified.RepositoryTickCount);
+            command.AddParameter("@CreatedReplica", remoteSyncableItemInfo.Created.ReplicaId);
+            command.AddParameter("@CreatedTick", remoteSyncableItemInfo.Created.ReplicaTickCount);
+            command.AddParameter("@ModifiedReplica", remoteSyncableItemInfo.Modified.ReplicaId);
+            command.AddParameter("@ModifiedTick", remoteSyncableItemInfo.Modified.ReplicaTickCount);
             command.AddParameter("@ItemData", data.ToString());
             command.ExecuteNonQuery();
         }
@@ -71,13 +71,13 @@ namespace SyncFoundation.Core
         public static void SaveItemPlaceHolder(IDbConnection connection, SyncStatus status, ISyncableItemInfo remoteSyncableItemInfo)
         {
             IDbCommand command = connection.CreateCommand();
-            command.CommandText = "INSERT INTO SyncItems(SyncStatus, ItemType, GlobalCreatedRepos, CreatedTickCount, GlobalModifiedRepos, ModifiedTickCount, ItemData) VALUES(@SyncStatus,@ItemType,@CreatedRepos,@CreatedTick,@ModifiedRepos,@ModifiedTick,@ItemData)";
+            command.CommandText = "INSERT INTO SyncItems(SyncStatus, ItemType, GlobalCreatedReplica, CreatedTickCount, GlobalModifiedReplica, ModifiedTickCount, ItemData) VALUES(@SyncStatus,@ItemType,@CreatedReplica,@CreatedTick,@ModifiedReplica,@ModifiedTick,@ItemData)";
             command.AddParameter("@SyncStatus", status);
             command.AddParameter("@ItemType", remoteSyncableItemInfo.ItemType);
-            command.AddParameter("@CreatedRepos", remoteSyncableItemInfo.Created.RepositoryID);
-            command.AddParameter("@CreatedTick", remoteSyncableItemInfo.Created.RepositoryTickCount);
-            command.AddParameter("@ModifiedRepos", remoteSyncableItemInfo.Modified.RepositoryID);
-            command.AddParameter("@ModifiedTick", remoteSyncableItemInfo.Modified.RepositoryTickCount);
+            command.AddParameter("@CreatedReplica", remoteSyncableItemInfo.Created.ReplicaId);
+            command.AddParameter("@CreatedTick", remoteSyncableItemInfo.Created.ReplicaTickCount);
+            command.AddParameter("@ModifiedReplica", remoteSyncableItemInfo.Modified.ReplicaId);
+            command.AddParameter("@ModifiedTick", remoteSyncableItemInfo.Modified.ReplicaTickCount);
             if (status == SyncStatus.Delete || status == SyncStatus.DeleteNonExisting)
                 command.AddParameter("@ItemData", "{item:{itemRefs:[]}}");
             else
@@ -88,18 +88,18 @@ namespace SyncFoundation.Core
         public static void UpdateItemPlaceholderData(IDbConnection connection, ISyncableItemInfo remoteSyncableItemInfo, JObject itemData)
         {
             IDbCommand command = connection.CreateCommand();
-            command.CommandText = "UPDATE SyncItems SET ItemData=@ItemData WHERE ItemType=@ItemType AND GlobalCreatedRepos=@CreatedRepos AND CreatedTickCount=@CreatedTick AND GlobalModifiedRepos=@ModifiedRepos AND ModifiedTickCount=@ModifiedTick";
+            command.CommandText = "UPDATE SyncItems SET ItemData=@ItemData WHERE ItemType=@ItemType AND GlobalCreatedReplica=@CreatedReplica AND CreatedTickCount=@CreatedTick AND GlobalModifiedReplica=@ModifiedReplica AND ModifiedTickCount=@ModifiedTick";
             command.AddParameter("@ItemType", remoteSyncableItemInfo.ItemType);
-            command.AddParameter("@CreatedRepos", remoteSyncableItemInfo.Created.RepositoryID);
-            command.AddParameter("@CreatedTick", remoteSyncableItemInfo.Created.RepositoryTickCount);
-            command.AddParameter("@ModifiedRepos", remoteSyncableItemInfo.Modified.RepositoryID);
-            command.AddParameter("@ModifiedTick", remoteSyncableItemInfo.Modified.RepositoryTickCount);
+            command.AddParameter("@CreatedReplica", remoteSyncableItemInfo.Created.ReplicaId);
+            command.AddParameter("@CreatedTick", remoteSyncableItemInfo.Created.ReplicaTickCount);
+            command.AddParameter("@ModifiedReplica", remoteSyncableItemInfo.Modified.ReplicaId);
+            command.AddParameter("@ModifiedTick", remoteSyncableItemInfo.Modified.ReplicaTickCount);
             command.AddParameter("@ItemData", itemData.ToString());
             command.ExecuteNonQuery();
         }
 
 
-        public static void SaveRemoteKnowledge(IDbConnection connection, IEnumerable<RepositoryInfo> remoteKnowledge)
+        public static void SaveRemoteKnowledge(IDbConnection connection, IEnumerable<ReplicaInfo> remoteKnowledge)
         {
             IDbCommand command = connection.CreateCommand();
             command.CommandText = "DELETE FROM RemoteKnowledge";
@@ -108,36 +108,36 @@ namespace SyncFoundation.Core
             foreach (var reposInfo in remoteKnowledge)
             {
                 IDbCommand insertCommand = connection.CreateCommand();
-                insertCommand.CommandText = "INSERT INTO RemoteKnowledge(GlobalReposID, ReposTickCount) VALUES (@GlobalReposID, @ReposTickCount)";
-                insertCommand.AddParameter("@GlobalReposID", reposInfo.RepositoryID);
-                insertCommand.AddParameter("@ReposTickCount", reposInfo.RepositoryTickCount);
+                insertCommand.CommandText = "INSERT INTO RemoteKnowledge(GlobalReplicaID, ReplicaTickCount) VALUES (@GlobalReplicaID, @ReplicaTickCount)";
+                insertCommand.AddParameter("@GlobalReplicaID", reposInfo.ReplicaId);
+                insertCommand.AddParameter("@ReplicaTickCount", reposInfo.ReplicaTickCount);
                 insertCommand.ExecuteNonQuery();
             }
         }
 
-        public static IEnumerable<IRepositoryInfo> LoadRemoteKnowledge(IDbConnection connection)
+        public static IEnumerable<IReplicaInfo> LoadRemoteKnowledge(IDbConnection connection)
         {
-            List<IRepositoryInfo> remoteKnowledge = new List<IRepositoryInfo>();
+            List<IReplicaInfo> remoteKnowledge = new List<IReplicaInfo>();
             IDbCommand selectCommand = connection.CreateCommand();
-            selectCommand.CommandText = "SELECT GlobalReposID, ReposTickCount FROM RemoteKnowledge";
+            selectCommand.CommandText = "SELECT GlobalReplicaID, ReplicaTickCount FROM RemoteKnowledge";
             using (IDataReader reader = selectCommand.ExecuteReader())
             {
                 while (reader.Read())
                 {
-                    string reposId = (string)reader["GlobalReposID"];
-                    long tick = Convert.ToInt64(reader["ReposTickCount"]);
-                    remoteKnowledge.Add(new RepositoryInfo { RepositoryID = reposId, RepositoryTickCount = tick });
+                    string reposId = (string)reader["GlobalReplicaID"];
+                    long tick = Convert.ToInt64(reader["ReplicaTickCount"]);
+                    remoteKnowledge.Add(new ReplicaInfo { ReplicaId = reposId, ReplicaTickCount = tick });
                 }
             }
 
             return remoteKnowledge;
         }
 
-        public static IRepositoryInfo RepositoryInfoFromDataReader(IDataReader reader, string fieldPrefix)
+        public static IReplicaInfo ReplicaInfoFromDataReader(IDataReader reader, string fieldPrefix)
         {
-            string reposId = (string)reader["Global" + fieldPrefix + "Repos"];
+            string reposId = (string)reader["Global" + fieldPrefix + "Replica"];
             long reposTick = Convert.ToInt64(reader[fieldPrefix + "TickCount"]);
-            return new RepositoryInfo { RepositoryID = reposId, RepositoryTickCount = reposTick };
+            return new ReplicaInfo { ReplicaId = reposId, ReplicaTickCount = reposTick };
         }
 
 
@@ -158,16 +158,16 @@ namespace SyncFoundation.Core
                     {
                         ISyncableItemInfo referencedItemInfo = SyncUtil.SyncableItemInfoFromJson(itemRefJson);
                         if (referencedItemInfo.ItemType == remoteItemInfo.ItemType &&
-                            referencedItemInfo.Created.RepositoryID == remoteItemInfo.Created.RepositoryID &&
-                            referencedItemInfo.Created.RepositoryTickCount == remoteItemInfo.Created.RepositoryTickCount &&
-                            referencedItemInfo.Modified.RepositoryID == remoteItemInfo.Modified.RepositoryID &&
-                            referencedItemInfo.Modified.RepositoryTickCount == remoteItemInfo.Modified.RepositoryTickCount
+                            referencedItemInfo.Created.ReplicaId == remoteItemInfo.Created.ReplicaId &&
+                            referencedItemInfo.Created.ReplicaTickCount == remoteItemInfo.Created.ReplicaTickCount &&
+                            referencedItemInfo.Modified.ReplicaId == remoteItemInfo.Modified.ReplicaId &&
+                            referencedItemInfo.Modified.ReplicaTickCount == remoteItemInfo.Modified.ReplicaTickCount
                             )
                         {
-                            itemRefJson["creationRepositoryID"] = changedItemInfo.Created.RepositoryID;
-                            itemRefJson["creationRepositoryTickCount"] = changedItemInfo.Created.RepositoryTickCount;
-                            itemRefJson["modificationRepositoryID"] = changedItemInfo.Modified.RepositoryID;
-                            itemRefJson["modificationRepositoryTickCount"] = changedItemInfo.Modified.RepositoryTickCount;
+                            itemRefJson["creationReplicaID"] = changedItemInfo.Created.ReplicaId;
+                            itemRefJson["creationReplicaTickCount"] = changedItemInfo.Created.ReplicaTickCount;
+                            itemRefJson["modificationReplicaID"] = changedItemInfo.Modified.ReplicaId;
+                            itemRefJson["modificationReplicaTickCount"] = changedItemInfo.Modified.ReplicaTickCount;
                             needToUpdate = true;
                         }
                     }
@@ -175,11 +175,11 @@ namespace SyncFoundation.Core
                     if (needToUpdate)
                     {
                         IDbCommand updateCommand = connection.CreateCommand();
-                        updateCommand.CommandText = "UPDATE SyncItems SET ItemData=@ItemData, GlobalModifiedRepos=@ModifiedRepos, ModifiedTickCount=@TickCount WHERE ItemID=@ItemID";
+                        updateCommand.CommandText = "UPDATE SyncItems SET ItemData=@ItemData, GlobalModifiedReplica=@ModifiedReplica, ModifiedTickCount=@TickCount WHERE ItemID=@ItemID";
                         updateCommand.AddParameter("@ItemID", reader["ItemID"]);
                         updateCommand.AddParameter("@ItemData", itemData.ToString());
-                        updateCommand.AddParameter("@TickCount", store.IncrementLocalRepositoryTickCount());
-                        updateCommand.AddParameter("@ModifiedRepos", store.GenerateLocalKnowledge().First().RepositoryID);
+                        updateCommand.AddParameter("@TickCount", store.IncrementLocalRepilcaTickCount());
+                        updateCommand.AddParameter("@ModifiedReplica", store.GenerateLocalKnowledge().First().ReplicaId);
                         updateCommand.ExecuteNonQuery();
                     }
                 }

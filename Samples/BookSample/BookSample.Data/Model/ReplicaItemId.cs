@@ -5,35 +5,35 @@ using System.Text;
 
 namespace BookSample.Data.Model
 {
-    class ReposItemId
+    class ReplicaItemId
     {
-        public ReposItemType ItemType { get; set; }
+        public ReplicaItemType ItemType { get; set; }
         public long RowId { get; set; }
-        public long CreationRepositoryLocalId { get; set; }
+        public long CreationReplicaLocalId { get; set; }
         public long CreationTickCount { get; set; }
-        public long ModificationRepositoryLocalId { get; set; }
+        public long ModificationReplicaLocalId { get; set; }
         public long ModificationTickCount { get; set; }
 
-        public ReposItemId()
+        public ReplicaItemId()
         {
         }
 
-        public ReposItemId(ReposItemId source)
+        public ReplicaItemId(ReplicaItemId source)
         {
             if (source != null)
             {
                 ItemType = source.ItemType;
                 RowId = source.RowId;
-                CreationRepositoryLocalId = source.CreationRepositoryLocalId;
+                CreationReplicaLocalId = source.CreationReplicaLocalId;
                 CreationTickCount = source.CreationTickCount;
-                ModificationRepositoryLocalId = source.ModificationRepositoryLocalId;
+                ModificationReplicaLocalId = source.ModificationReplicaLocalId;
                 ModificationTickCount = source.ModificationTickCount;
             }
         }
 
 
-        private static ReposItemId _empty = new ReposItemId();
-        public static ReposItemId Empty
+        private static ReplicaItemId _empty = new ReplicaItemId();
+        public static ReplicaItemId Empty
         {
             get
             {
@@ -55,7 +55,7 @@ namespace BookSample.Data.Model
                 return false;
             }
 
-            return (this == (ReposItemId)obj);
+            return (this == (ReplicaItemId)obj);
         }
     
         // override object.GetHashCode
@@ -64,7 +64,7 @@ namespace BookSample.Data.Model
             return base.GetHashCode();
         }
 
-        public static bool operator ==(ReposItemId a, ReposItemId b)
+        public static bool operator ==(ReplicaItemId a, ReplicaItemId b)
         {
             // If both are null, or both are same instance, return true.
             if (System.Object.ReferenceEquals(a, b))
@@ -83,24 +83,24 @@ namespace BookSample.Data.Model
                 return false;
             if (a.RowId != b.RowId)
                 return false;
-            if (a.CreationRepositoryLocalId != b.CreationRepositoryLocalId)
+            if (a.CreationReplicaLocalId != b.CreationReplicaLocalId)
                 return false;
             if (a.CreationTickCount != b.CreationTickCount)
                 return false;
-            if (a.ModificationRepositoryLocalId != b.ModificationRepositoryLocalId)
+            if (a.ModificationReplicaLocalId != b.ModificationReplicaLocalId)
                 return false;
             if (a.ModificationTickCount != b.ModificationTickCount)
                 return false;
             return true;
         }
 
-        public static bool operator !=(ReposItemId a, ReposItemId b)
+        public static bool operator !=(ReplicaItemId a, ReplicaItemId b)
         {
             return !(a == b);
         }
     }
 
-    public enum ReposItemType
+    public enum ReplicaItemType
     {
         Unknown = 0,
         Book = 1, 

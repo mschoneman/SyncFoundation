@@ -22,16 +22,16 @@ namespace BookSample.Test
             File.Delete(@"..\..\..\BookSample.WebService\App_Data\test@example.com.User.sqlite");
         }
 
-        private RepositorySyncableStoreAdapter GetAdapter(string file1)
+        private BookRepositorySyncableStoreAdapter GetAdapter(string path)
         {
-            File.Delete(file1);
-            var repos1 = new BookRepository(file1);
-            var adapter1 = new RepositorySyncableStoreAdapter(repos1);
-            return adapter1;
+            File.Delete(path);
+            var repos = new BookRepository(path);
+            var adapter = new BookRepositorySyncableStoreAdapter(repos);
+            return adapter;
         }
 
         [TestMethod]
-        public void TestEmptyReposAreDifferent()
+        public void TestEmptyReplicaAreDifferent()
         {
             resetCloud();
             string file1 = "TEST1.sqlite";
@@ -46,7 +46,7 @@ namespace BookSample.Test
             }
         }
 
-        private void syncAdatapersAssertNoConflicts(RepositorySyncableStoreAdapter adapter1, RepositorySyncableStoreAdapter adapter2)
+        private void syncAdatapersAssertNoConflicts(BookRepositorySyncableStoreAdapter adapter1, BookRepositorySyncableStoreAdapter adapter2)
         {
             // send any changes in 1 to cloud 
             var session1 = new SyncSession(adapter1, new ClientSyncSessionDbConnectionProdivder(), new Uri(remoteHost), "test@example.com", "monkey");
@@ -68,7 +68,7 @@ namespace BookSample.Test
         }
 
         [TestMethod]
-        public void TestSyncEmptyRepos()
+        public void TestSyncEmptyReplica()
         {
             resetCloud();
             string file1 = "TEST1.sqlite";
@@ -105,19 +105,19 @@ namespace BookSample.Test
                 var state3 = adapter1.GetDbState();
                 var state4 = adapter2.GetDbState();
 
-                Assert.AreEqual(1, adapter2.Repos.AllPeople.Count);
-                Assert.AreEqual("Test Person", adapter2.Repos.AllPeople[0].Name);
+                Assert.AreEqual(1, adapter2.BookRepository.AllPeople.Count);
+                Assert.AreEqual("Test Person", adapter2.BookRepository.AllPeople[0].Name);
 
                 Assert.AreNotEqual(state1, state2);
                 Assert.AreEqual(state3, state4);
             }
         }
 
-        private static void addPerson(RepositorySyncableStoreAdapter adapter, string name)
+        private static void addPerson(BookRepositorySyncableStoreAdapter adapter, string name)
         {
-            IPerson person = adapter.Repos.GetWriteablePerson(null);
+            IPerson person = adapter.BookRepository.GetWriteablePerson(null);
             person.Name = name;
-            adapter.Repos.SavePerson(person);
+            adapter.BookRepository.SavePerson(person);
         }
 
         [TestMethod]
@@ -138,8 +138,8 @@ namespace BookSample.Test
                 var state3 = adapter1.GetDbState();
                 var state4 = adapter2.GetDbState();
 
-                Assert.AreEqual(1, adapter1.Repos.AllPeople.Count);
-                Assert.AreEqual("Test Person", adapter1.Repos.AllPeople[0].Name);
+                Assert.AreEqual(1, adapter1.BookRepository.AllPeople.Count);
+                Assert.AreEqual("Test Person", adapter1.BookRepository.AllPeople[0].Name);
 
                 Assert.AreNotEqual(state1, state2);
                 Assert.AreEqual(state3, state4);
@@ -165,10 +165,10 @@ namespace BookSample.Test
                 var state3 = adapter1.GetDbState();
                 var state4 = adapter2.GetDbState();
 
-                Assert.AreEqual(1, adapter2.Repos.AllPeople.Count);
-                Assert.AreEqual("Test Person", adapter2.Repos.AllPeople[0].Name);
-                Assert.AreEqual(1, adapter1.Repos.AllPeople.Count);
-                Assert.AreEqual("Test Person", adapter1.Repos.AllPeople[0].Name);
+                Assert.AreEqual(1, adapter2.BookRepository.AllPeople.Count);
+                Assert.AreEqual("Test Person", adapter2.BookRepository.AllPeople[0].Name);
+                Assert.AreEqual(1, adapter1.BookRepository.AllPeople.Count);
+                Assert.AreEqual("Test Person", adapter1.BookRepository.AllPeople[0].Name);
 
                 Assert.AreNotEqual(state1, state2);
                 Assert.AreEqual(state3, state4);
@@ -193,10 +193,10 @@ namespace BookSample.Test
                 var state3 = adapter1.GetDbState();
                 var state4 = adapter2.GetDbState();
 
-                Assert.AreEqual(1, adapter2.Repos.AllPeople.Count);
-                Assert.AreEqual("Test Person", adapter2.Repos.AllPeople[0].Name);
+                Assert.AreEqual(1, adapter2.BookRepository.AllPeople.Count);
+                Assert.AreEqual("Test Person", adapter2.BookRepository.AllPeople[0].Name);
 
-                adapter1.Repos.DeletePerson(adapter1.Repos.AllPeople[0]);
+                adapter1.BookRepository.DeletePerson(adapter1.BookRepository.AllPeople[0]);
                 var state5 = adapter1.GetDbState();
                 var state6 = adapter2.GetDbState();
                 syncAdatapersAssertNoConflicts(adapter1, adapter2);
@@ -231,10 +231,10 @@ namespace BookSample.Test
                 var state3 = adapter1.GetDbState();
                 var state4 = adapter2.GetDbState();
 
-                Assert.AreEqual(1, adapter2.Repos.AllPeople.Count);
-                Assert.AreEqual("Test Person", adapter2.Repos.AllPeople[0].Name);
+                Assert.AreEqual(1, adapter2.BookRepository.AllPeople.Count);
+                Assert.AreEqual("Test Person", adapter2.BookRepository.AllPeople[0].Name);
 
-                adapter2.Repos.DeletePerson(adapter2.Repos.AllPeople[0]);
+                adapter2.BookRepository.DeletePerson(adapter2.BookRepository.AllPeople[0]);
                 var state5 = adapter1.GetDbState();
                 var state6 = adapter2.GetDbState();
                 syncAdatapersAssertNoConflicts(adapter1, adapter2);
@@ -268,19 +268,19 @@ namespace BookSample.Test
                 var state3 = adapter1.GetDbState();
                 var state4 = adapter2.GetDbState();
 
-                Assert.AreEqual(1, adapter2.Repos.AllBooks.Count);
-                Assert.AreEqual("Test Book", adapter2.Repos.AllBooks[0].Title);
+                Assert.AreEqual(1, adapter2.BookRepository.AllBooks.Count);
+                Assert.AreEqual("Test Book", adapter2.BookRepository.AllBooks[0].Title);
 
                 Assert.AreNotEqual(state1, state2);
                 Assert.AreEqual(state3, state4);
             }
         }
 
-        private static void addBook(RepositorySyncableStoreAdapter adapter, string title)
+        private static void addBook(BookRepositorySyncableStoreAdapter adapter, string title)
         {
-            IBook Book = adapter.Repos.GetWriteableBook(null);
+            IBook Book = adapter.BookRepository.GetWriteableBook(null);
             Book.Title = title;
-            adapter.Repos.SaveBook(Book);
+            adapter.BookRepository.SaveBook(Book);
         }
 
         [TestMethod]
@@ -301,8 +301,8 @@ namespace BookSample.Test
                 var state3 = adapter1.GetDbState();
                 var state4 = adapter2.GetDbState();
 
-                Assert.AreEqual(1, adapter1.Repos.AllBooks.Count);
-                Assert.AreEqual("Test Book", adapter1.Repos.AllBooks[0].Title);
+                Assert.AreEqual(1, adapter1.BookRepository.AllBooks.Count);
+                Assert.AreEqual("Test Book", adapter1.BookRepository.AllBooks[0].Title);
 
                 Assert.AreNotEqual(state1, state2);
                 Assert.AreEqual(state3, state4);
@@ -328,10 +328,10 @@ namespace BookSample.Test
                 var state3 = adapter1.GetDbState();
                 var state4 = adapter2.GetDbState();
 
-                Assert.AreEqual(1, adapter2.Repos.AllBooks.Count);
-                Assert.AreEqual("Test Book", adapter2.Repos.AllBooks[0].Title);
-                Assert.AreEqual(1, adapter1.Repos.AllBooks.Count);
-                Assert.AreEqual("Test Book", adapter1.Repos.AllBooks[0].Title);
+                Assert.AreEqual(1, adapter2.BookRepository.AllBooks.Count);
+                Assert.AreEqual("Test Book", adapter2.BookRepository.AllBooks[0].Title);
+                Assert.AreEqual(1, adapter1.BookRepository.AllBooks.Count);
+                Assert.AreEqual("Test Book", adapter1.BookRepository.AllBooks[0].Title);
 
                 Assert.AreNotEqual(state1, state2);
                 Assert.AreEqual(state3, state4);
@@ -391,24 +391,24 @@ namespace BookSample.Test
                 var state3 = adapter1.GetDbState();
                 var state4 = adapter2.GetDbState();
 
-                Assert.AreEqual(1, adapter1.Repos.AllPeople.Count);
-                Assert.AreEqual(1, adapter2.Repos.AllPeople.Count);
+                Assert.AreEqual(1, adapter1.BookRepository.AllPeople.Count);
+                Assert.AreEqual(1, adapter2.BookRepository.AllPeople.Count);
 
-                Assert.AreEqual(1, adapter1.Repos.AllBooks.Count);
-                Assert.AreEqual(1, adapter2.Repos.AllBooks.Count);
+                Assert.AreEqual(1, adapter1.BookRepository.AllBooks.Count);
+                Assert.AreEqual(1, adapter2.BookRepository.AllBooks.Count);
 
                 Assert.AreNotEqual(state1, state2);
                 Assert.AreEqual(state3, state4);
             }
         }
 
-        private void addPersonToBook(RepositorySyncableStoreAdapter adapter1, string title, string name)
+        private void addPersonToBook(BookRepositorySyncableStoreAdapter adapter1, string title, string name)
         {
-            IPerson person = (from p in adapter1.Repos.AllPeople where p.Name == name select p).First();
-            IBook book = (from p in adapter1.Repos.AllBooks where p.Title == title select p).First();
-            IBook bookWritable = adapter1.Repos.GetWriteableBook(book);
+            IPerson person = (from p in adapter1.BookRepository.AllPeople where p.Name == name select p).First();
+            IBook book = (from p in adapter1.BookRepository.AllBooks where p.Title == title select p).First();
+            IBook bookWritable = adapter1.BookRepository.GetWriteableBook(book);
             bookWritable.Authors.Add(person);
-            adapter1.Repos.SaveBook(bookWritable);
+            adapter1.BookRepository.SaveBook(bookWritable);
         }
 
 
@@ -443,11 +443,11 @@ namespace BookSample.Test
                 var state3 = adapter1.GetDbState();
                 var state4 = adapter2.GetDbState();
 
-                Assert.AreEqual(3, adapter1.Repos.AllPeople.Count);
-                Assert.AreEqual(3, adapter2.Repos.AllPeople.Count);
+                Assert.AreEqual(3, adapter1.BookRepository.AllPeople.Count);
+                Assert.AreEqual(3, adapter2.BookRepository.AllPeople.Count);
 
-                Assert.AreEqual(3, adapter1.Repos.AllBooks.Count);
-                Assert.AreEqual(3, adapter2.Repos.AllBooks.Count);
+                Assert.AreEqual(3, adapter1.BookRepository.AllBooks.Count);
+                Assert.AreEqual(3, adapter2.BookRepository.AllBooks.Count);
 
                 Assert.AreNotEqual(state1, state2);
                 Assert.AreEqual(state3, state4);
@@ -486,11 +486,11 @@ namespace BookSample.Test
                 var state3 = adapter1.GetDbState();
                 var state4 = adapter2.GetDbState();
 
-                Assert.AreEqual(3, adapter1.Repos.AllPeople.Count);
-                Assert.AreEqual(3, adapter2.Repos.AllPeople.Count);
+                Assert.AreEqual(3, adapter1.BookRepository.AllPeople.Count);
+                Assert.AreEqual(3, adapter2.BookRepository.AllPeople.Count);
 
-                Assert.AreEqual(3, adapter1.Repos.AllBooks.Count);
-                Assert.AreEqual(3, adapter2.Repos.AllBooks.Count);
+                Assert.AreEqual(3, adapter1.BookRepository.AllBooks.Count);
+                Assert.AreEqual(3, adapter2.BookRepository.AllBooks.Count);
 
                 Assert.AreNotEqual(state1, state2);
                 Assert.AreEqual(state3, state4);
@@ -529,11 +529,11 @@ namespace BookSample.Test
                 var state3 = adapter1.GetDbState();
                 var state4 = adapter2.GetDbState();
 
-                Assert.AreEqual(3, adapter1.Repos.AllPeople.Count);
-                Assert.AreEqual(3, adapter2.Repos.AllPeople.Count);
+                Assert.AreEqual(3, adapter1.BookRepository.AllPeople.Count);
+                Assert.AreEqual(3, adapter2.BookRepository.AllPeople.Count);
 
-                Assert.AreEqual(3, adapter1.Repos.AllBooks.Count);
-                Assert.AreEqual(3, adapter2.Repos.AllBooks.Count);
+                Assert.AreEqual(3, adapter1.BookRepository.AllBooks.Count);
+                Assert.AreEqual(3, adapter2.BookRepository.AllBooks.Count);
 
                 Assert.AreNotEqual(state1, state2);
                 Assert.AreEqual(state3, state4);
@@ -574,11 +574,11 @@ namespace BookSample.Test
                 var state3 = adapter1.GetDbState();
                 var state4 = adapter2.GetDbState();
 
-                Assert.AreEqual(3, adapter1.Repos.AllPeople.Count);
-                Assert.AreEqual(3, adapter2.Repos.AllPeople.Count);
+                Assert.AreEqual(3, adapter1.BookRepository.AllPeople.Count);
+                Assert.AreEqual(3, adapter2.BookRepository.AllPeople.Count);
 
-                Assert.AreEqual(4, adapter1.Repos.AllBooks.Count);
-                Assert.AreEqual(4, adapter2.Repos.AllBooks.Count);
+                Assert.AreEqual(4, adapter1.BookRepository.AllBooks.Count);
+                Assert.AreEqual(4, adapter2.BookRepository.AllBooks.Count);
 
                 Assert.AreNotEqual(state1, state2);
                 Assert.AreEqual(state3, state4);
@@ -623,11 +623,11 @@ namespace BookSample.Test
                 var state3 = adapter1.GetDbState();
                 var state4 = adapter2.GetDbState();
 
-                Assert.AreEqual(3, adapter1.Repos.AllPeople.Count);
-                Assert.AreEqual(3, adapter2.Repos.AllPeople.Count);
+                Assert.AreEqual(3, adapter1.BookRepository.AllPeople.Count);
+                Assert.AreEqual(3, adapter2.BookRepository.AllPeople.Count);
 
-                Assert.AreEqual(5, adapter1.Repos.AllBooks.Count);
-                Assert.AreEqual(5, adapter2.Repos.AllBooks.Count);
+                Assert.AreEqual(5, adapter1.BookRepository.AllBooks.Count);
+                Assert.AreEqual(5, adapter2.BookRepository.AllBooks.Count);
 
                 Assert.AreNotEqual(state1, state2);
                 Assert.AreEqual(state3, state4);
@@ -653,9 +653,9 @@ namespace BookSample.Test
                 var state3 = adapter1.GetDbState();
                 var state4 = adapter2.GetDbState();
 
-                IBook writeableBook = adapter1.Repos.GetWriteableBook(adapter1.Repos.AllBooks[0]);
+                IBook writeableBook = adapter1.BookRepository.GetWriteableBook(adapter1.BookRepository.AllBooks[0]);
                 writeableBook.Title = "Modified 1";
-                adapter1.Repos.SaveBook(writeableBook);
+                adapter1.BookRepository.SaveBook(writeableBook);
 
                 var state5 = adapter1.GetDbState();
                 var state6 = adapter2.GetDbState();
@@ -663,10 +663,10 @@ namespace BookSample.Test
                 var state7 = adapter1.GetDbState();
                 var state8 = adapter2.GetDbState();
 
-                Assert.AreEqual(1, adapter1.Repos.AllBooks.Count);
-                Assert.AreEqual(1, adapter2.Repos.AllBooks.Count);
-                Assert.AreEqual("Modified 1", adapter1.Repos.AllBooks[0].Title);
-                Assert.AreEqual("Modified 1", adapter2.Repos.AllBooks[0].Title);
+                Assert.AreEqual(1, adapter1.BookRepository.AllBooks.Count);
+                Assert.AreEqual(1, adapter2.BookRepository.AllBooks.Count);
+                Assert.AreEqual("Modified 1", adapter1.BookRepository.AllBooks[0].Title);
+                Assert.AreEqual("Modified 1", adapter2.BookRepository.AllBooks[0].Title);
 
                 Assert.AreNotEqual(state1, state2);
                 Assert.AreEqual(state3, state4);
@@ -703,16 +703,16 @@ namespace BookSample.Test
                 var state7 = adapter1.GetDbState();
                 var state8 = adapter2.GetDbState();
 
-                Assert.AreEqual(1, adapter1.Repos.AllPeople.Count);
-                Assert.AreEqual(1, adapter2.Repos.AllPeople.Count);
-                Assert.AreEqual(1, adapter1.Repos.AllBooks.Count);
-                Assert.AreEqual(1, adapter2.Repos.AllBooks.Count);
-                Assert.AreEqual(1, adapter1.Repos.AllBooks[0].Authors.Count);
-                Assert.AreEqual(1, adapter2.Repos.AllBooks[0].Authors.Count);
-                Assert.AreEqual("Book 1", adapter1.Repos.AllBooks[0].Title);
-                Assert.AreEqual("Book 1", adapter2.Repos.AllBooks[0].Title);
-                Assert.AreEqual("Person 1", adapter1.Repos.AllBooks[0].Authors[0].Name);
-                Assert.AreEqual("Person 1", adapter2.Repos.AllBooks[0].Authors[0].Name);
+                Assert.AreEqual(1, adapter1.BookRepository.AllPeople.Count);
+                Assert.AreEqual(1, adapter2.BookRepository.AllPeople.Count);
+                Assert.AreEqual(1, adapter1.BookRepository.AllBooks.Count);
+                Assert.AreEqual(1, adapter2.BookRepository.AllBooks.Count);
+                Assert.AreEqual(1, adapter1.BookRepository.AllBooks[0].Authors.Count);
+                Assert.AreEqual(1, adapter2.BookRepository.AllBooks[0].Authors.Count);
+                Assert.AreEqual("Book 1", adapter1.BookRepository.AllBooks[0].Title);
+                Assert.AreEqual("Book 1", adapter2.BookRepository.AllBooks[0].Title);
+                Assert.AreEqual("Person 1", adapter1.BookRepository.AllBooks[0].Authors[0].Name);
+                Assert.AreEqual("Person 1", adapter2.BookRepository.AllBooks[0].Authors[0].Name);
 
                 Assert.AreNotEqual(state1, state2);
                 Assert.AreEqual(state3, state4);
@@ -751,16 +751,16 @@ namespace BookSample.Test
                 var state7 = adapter1.GetDbState();
                 var state8 = adapter2.GetDbState();
 
-                Assert.AreEqual(1, adapter1.Repos.AllPeople.Count);
-                Assert.AreEqual(1, adapter2.Repos.AllPeople.Count);
-                Assert.AreEqual(1, adapter1.Repos.AllBooks.Count);
-                Assert.AreEqual(1, adapter2.Repos.AllBooks.Count);
-                Assert.AreEqual(1, adapter1.Repos.AllBooks[0].Authors.Count);
-                Assert.AreEqual(1, adapter2.Repos.AllBooks[0].Authors.Count);
-                Assert.AreEqual("Book 1", adapter1.Repos.AllBooks[0].Title);
-                Assert.AreEqual("Book 1", adapter2.Repos.AllBooks[0].Title);
-                Assert.AreEqual("Person 1", adapter1.Repos.AllBooks[0].Authors[0].Name);
-                Assert.AreEqual("Person 1", adapter2.Repos.AllBooks[0].Authors[0].Name);
+                Assert.AreEqual(1, adapter1.BookRepository.AllPeople.Count);
+                Assert.AreEqual(1, adapter2.BookRepository.AllPeople.Count);
+                Assert.AreEqual(1, adapter1.BookRepository.AllBooks.Count);
+                Assert.AreEqual(1, adapter2.BookRepository.AllBooks.Count);
+                Assert.AreEqual(1, adapter1.BookRepository.AllBooks[0].Authors.Count);
+                Assert.AreEqual(1, adapter2.BookRepository.AllBooks[0].Authors.Count);
+                Assert.AreEqual("Book 1", adapter1.BookRepository.AllBooks[0].Title);
+                Assert.AreEqual("Book 1", adapter2.BookRepository.AllBooks[0].Title);
+                Assert.AreEqual("Person 1", adapter1.BookRepository.AllBooks[0].Authors[0].Name);
+                Assert.AreEqual("Person 1", adapter2.BookRepository.AllBooks[0].Authors[0].Name);
 
                 Assert.AreNotEqual(state1, state2);
                 Assert.AreEqual(state3, state4);
@@ -789,9 +789,9 @@ namespace BookSample.Test
                 var state3 = adapter1.GetDbState();
                 var state4 = adapter2.GetDbState();
 
-                IBook writeableBook = adapter1.Repos.GetWriteableBook(adapter1.Repos.AllBooks[0]);
+                IBook writeableBook = adapter1.BookRepository.GetWriteableBook(adapter1.BookRepository.AllBooks[0]);
                 writeableBook.Authors.Clear();
-                adapter1.Repos.SaveBook(writeableBook);
+                adapter1.BookRepository.SaveBook(writeableBook);
 
 
                 var state5 = adapter1.GetDbState();
@@ -800,12 +800,12 @@ namespace BookSample.Test
                 var state7 = adapter1.GetDbState();
                 var state8 = adapter2.GetDbState();
 
-                Assert.AreEqual(1, adapter1.Repos.AllPeople.Count);
-                Assert.AreEqual(1, adapter2.Repos.AllPeople.Count);
-                Assert.AreEqual(1, adapter1.Repos.AllBooks.Count);
-                Assert.AreEqual(1, adapter2.Repos.AllBooks.Count);
-                Assert.AreEqual(0, adapter1.Repos.AllBooks[0].Authors.Count);
-                Assert.AreEqual(0, adapter2.Repos.AllBooks[0].Authors.Count);
+                Assert.AreEqual(1, adapter1.BookRepository.AllPeople.Count);
+                Assert.AreEqual(1, adapter2.BookRepository.AllPeople.Count);
+                Assert.AreEqual(1, adapter1.BookRepository.AllBooks.Count);
+                Assert.AreEqual(1, adapter2.BookRepository.AllBooks.Count);
+                Assert.AreEqual(0, adapter1.BookRepository.AllBooks[0].Authors.Count);
+                Assert.AreEqual(0, adapter2.BookRepository.AllBooks[0].Authors.Count);
 
                 Assert.AreNotEqual(state1, state2);
                 Assert.AreEqual(state3, state4);
@@ -835,10 +835,10 @@ namespace BookSample.Test
                 var state3 = adapter1.GetDbState();
                 var state4 = adapter2.GetDbState();
 
-                IBook writeableBook = adapter1.Repos.GetWriteableBook(adapter1.Repos.AllBooks[0]);
+                IBook writeableBook = adapter1.BookRepository.GetWriteableBook(adapter1.BookRepository.AllBooks[0]);
                 writeableBook.Authors.Clear();
-                adapter1.Repos.SaveBook(writeableBook);
-                adapter1.Repos.DeletePerson(adapter1.Repos.AllPeople[0]);
+                adapter1.BookRepository.SaveBook(writeableBook);
+                adapter1.BookRepository.DeletePerson(adapter1.BookRepository.AllPeople[0]);
 
                 var state5 = adapter1.GetDbState();
                 var state6 = adapter2.GetDbState();
@@ -846,12 +846,12 @@ namespace BookSample.Test
                 var state7 = adapter1.GetDbState();
                 var state8 = adapter2.GetDbState();
 
-                Assert.AreEqual(0, adapter1.Repos.AllPeople.Count);
-                Assert.AreEqual(0, adapter2.Repos.AllPeople.Count);
-                Assert.AreEqual(1, adapter1.Repos.AllBooks.Count);
-                Assert.AreEqual(1, adapter2.Repos.AllBooks.Count);
-                Assert.AreEqual(0, adapter1.Repos.AllBooks[0].Authors.Count);
-                Assert.AreEqual(0, adapter2.Repos.AllBooks[0].Authors.Count);
+                Assert.AreEqual(0, adapter1.BookRepository.AllPeople.Count);
+                Assert.AreEqual(0, adapter2.BookRepository.AllPeople.Count);
+                Assert.AreEqual(1, adapter1.BookRepository.AllBooks.Count);
+                Assert.AreEqual(1, adapter2.BookRepository.AllBooks.Count);
+                Assert.AreEqual(0, adapter1.BookRepository.AllBooks[0].Authors.Count);
+                Assert.AreEqual(0, adapter2.BookRepository.AllBooks[0].Authors.Count);
 
                 Assert.AreNotEqual(state1, state2);
                 Assert.AreEqual(state3, state4);
@@ -880,9 +880,9 @@ namespace BookSample.Test
                 var state3 = adapter1.GetDbState();
                 var state4 = adapter2.GetDbState();
 
-                IPerson writeablePerson = adapter1.Repos.GetWriteablePerson(adapter1.Repos.AllPeople[0]);
+                IPerson writeablePerson = adapter1.BookRepository.GetWriteablePerson(adapter1.BookRepository.AllPeople[0]);
                 writeablePerson.Name = "Modified 1";
-                adapter1.Repos.SavePerson(writeablePerson);
+                adapter1.BookRepository.SavePerson(writeablePerson);
 
                 var state5 = adapter1.GetDbState();
                 var state6 = adapter2.GetDbState();
@@ -890,10 +890,10 @@ namespace BookSample.Test
                 var state7 = adapter1.GetDbState();
                 var state8 = adapter2.GetDbState();
 
-                Assert.AreEqual(1, adapter1.Repos.AllPeople.Count);
-                Assert.AreEqual(1, adapter2.Repos.AllPeople.Count);
-                Assert.AreEqual("Modified 1", adapter1.Repos.AllPeople[0].Name);
-                Assert.AreEqual("Modified 1", adapter2.Repos.AllPeople[0].Name);
+                Assert.AreEqual(1, adapter1.BookRepository.AllPeople.Count);
+                Assert.AreEqual(1, adapter2.BookRepository.AllPeople.Count);
+                Assert.AreEqual("Modified 1", adapter1.BookRepository.AllPeople[0].Name);
+                Assert.AreEqual("Modified 1", adapter2.BookRepository.AllPeople[0].Name);
 
                 Assert.AreNotEqual(state1, state2);
                 Assert.AreEqual(state3, state4);
@@ -921,13 +921,13 @@ namespace BookSample.Test
                 var state3 = adapter1.GetDbState();
                 var state4 = adapter2.GetDbState();
 
-                IPerson writeablePerson = adapter1.Repos.GetWriteablePerson(adapter1.Repos.AllPeople[0]);
+                IPerson writeablePerson = adapter1.BookRepository.GetWriteablePerson(adapter1.BookRepository.AllPeople[0]);
                 writeablePerson.Name = "Modified 1";
-                adapter1.Repos.SavePerson(writeablePerson);
+                adapter1.BookRepository.SavePerson(writeablePerson);
 
-                writeablePerson = adapter2.Repos.GetWriteablePerson(adapter2.Repos.AllPeople[0]);
+                writeablePerson = adapter2.BookRepository.GetWriteablePerson(adapter2.BookRepository.AllPeople[0]);
                 writeablePerson.Name = "Modified 2";
-                adapter2.Repos.SavePerson(writeablePerson);
+                adapter2.BookRepository.SavePerson(writeablePerson);
 
 
                 // send any changes in 1 to cloud 
@@ -975,10 +975,10 @@ namespace BookSample.Test
                 Assert.AreEqual(0, conflicts2.Count());
                 Assert.AreEqual(0, conflicts3.Count());
 
-                Assert.AreEqual(1, adapter1.Repos.AllPeople.Count);
-                Assert.AreEqual(1, adapter2.Repos.AllPeople.Count);
-                Assert.AreEqual("Modified 2", adapter1.Repos.AllPeople[0].Name);
-                Assert.AreEqual("Modified 2", adapter2.Repos.AllPeople[0].Name);
+                Assert.AreEqual(1, adapter1.BookRepository.AllPeople.Count);
+                Assert.AreEqual(1, adapter2.BookRepository.AllPeople.Count);
+                Assert.AreEqual("Modified 2", adapter1.BookRepository.AllPeople[0].Name);
+                Assert.AreEqual("Modified 2", adapter2.BookRepository.AllPeople[0].Name);
 
                 Assert.AreNotEqual(state1, state2);
                 Assert.AreEqual(state3, state4);
@@ -1004,13 +1004,13 @@ namespace BookSample.Test
                 var state3 = adapter1.GetDbState();
                 var state4 = adapter2.GetDbState();
 
-                IPerson writeablePerson = adapter1.Repos.GetWriteablePerson(adapter1.Repos.AllPeople[0]);
+                IPerson writeablePerson = adapter1.BookRepository.GetWriteablePerson(adapter1.BookRepository.AllPeople[0]);
                 writeablePerson.Name = "Modified 1";
-                adapter1.Repos.SavePerson(writeablePerson);
+                adapter1.BookRepository.SavePerson(writeablePerson);
 
-                writeablePerson = adapter2.Repos.GetWriteablePerson(adapter2.Repos.AllPeople[0]);
+                writeablePerson = adapter2.BookRepository.GetWriteablePerson(adapter2.BookRepository.AllPeople[0]);
                 writeablePerson.Name = "Modified 2";
-                adapter2.Repos.SavePerson(writeablePerson);
+                adapter2.BookRepository.SavePerson(writeablePerson);
 
 
                 // send any changes in 1 to cloud 
@@ -1058,10 +1058,10 @@ namespace BookSample.Test
                 Assert.AreEqual(0, conflicts2.Count());
                 Assert.AreEqual(0, conflicts3.Count());
 
-                Assert.AreEqual(1, adapter1.Repos.AllPeople.Count);
-                Assert.AreEqual(1, adapter2.Repos.AllPeople.Count);
-                Assert.AreEqual("Modified 1", adapter1.Repos.AllPeople[0].Name);
-                Assert.AreEqual("Modified 1", adapter2.Repos.AllPeople[0].Name);
+                Assert.AreEqual(1, adapter1.BookRepository.AllPeople.Count);
+                Assert.AreEqual(1, adapter2.BookRepository.AllPeople.Count);
+                Assert.AreEqual("Modified 1", adapter1.BookRepository.AllPeople[0].Name);
+                Assert.AreEqual("Modified 1", adapter2.BookRepository.AllPeople[0].Name);
 
                 Assert.AreNotEqual(state1, state2);
                 Assert.AreEqual(state3, state4);

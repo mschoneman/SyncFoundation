@@ -14,7 +14,7 @@ using System.Threading;
 
 namespace BookSample.Data.Sync
 {
-    public class RepositorySyncableStoreAdapter : ISyncableStore, IDisposable
+    public class BookRepositorySyncableStoreAdapter : ISyncableStore, IDisposable
     {
         private BookRepository _repos;
         private IDbConnection _connection;
@@ -25,7 +25,7 @@ namespace BookSample.Data.Sync
         private IList<ISyncableItemInfo> _pendingDeletes = new List<ISyncableItemInfo>();
 
 
-        public RepositorySyncableStoreAdapter(BookRepository repos)
+        public BookRepositorySyncableStoreAdapter(BookRepository repos)
         {
             _repos = repos;
             _connection = _repos.createConnection();
@@ -39,7 +39,7 @@ namespace BookSample.Data.Sync
             _connection.Close();
         }
 
-        public BookRepository Repos
+        public BookRepository BookRepository
         {
             get
             {
@@ -63,24 +63,24 @@ namespace BookSample.Data.Sync
             return types;
         }
 
-        public IEnumerable<IRepositoryInfo> GenerateLocalKnowledge()
+        public IEnumerable<IReplicaInfo> GenerateLocalKnowledge()
         {
-            List<IRepositoryInfo> knowledge = new List<IRepositoryInfo>();
+            List<IReplicaInfo> knowledge = new List<IReplicaInfo>();
             IDbCommand select = _connection.CreateCommand();
-            select.CommandText = String.Format("SELECT GlobalReposID,ReposTickCount FROM SyncRepositories");
+            select.CommandText = String.Format("SELECT GlobalReplicaID,ReplicaTickCount FROM SyncReplicaitories");
             using (IDataReader reader = select.ExecuteReader())
             {
                 while (reader.Read())
                 {
-                    string globalId = Convert.ToString(reader["GlobalReposID"]);
-                    long tick = Convert.ToInt64(reader["ReposTickCount"]);
-                    knowledge.Add(new RepositoryInfo { RepositoryID = globalId, RepositoryTickCount = tick });
+                    string globalId = Convert.ToString(reader["GlobalReplicaID"]);
+                    long tick = Convert.ToInt64(reader["ReplicaTickCount"]);
+                    knowledge.Add(new ReplicaInfo { ReplicaId = globalId, ReplicaTickCount = tick });
                 }
             }
             return knowledge;
         }
 
-        public IEnumerable<ISyncableItemInfo> LocateChangedItems(IEnumerable<IRepositoryInfo> remoteKnowledge)
+        public IEnumerable<ISyncableItemInfo> LocateChangedItems(IEnumerable<IReplicaInfo> remoteKnowledge)
         {
             List<ISyncableItemInfo> changes = new List<ISyncableItemInfo>();
 
@@ -93,7 +93,7 @@ namespace BookSample.Data.Sync
             return changes;
         }
 
-        private IEnumerable<ISyncableItemInfo> LocateChangedOrDeletedItems(ISyncableTypeHandler typeHandler, IEnumerable<IRepositoryInfo> remoteKnowledge)
+        private IEnumerable<ISyncableItemInfo> LocateChangedOrDeletedItems(ISyncableTypeHandler typeHandler, IEnumerable<IReplicaInfo> remoteKnowledge)
         {
             List<ISyncableItemInfo> changes = new List<ISyncableItemInfo>();
 
@@ -103,10 +103,10 @@ namespace BookSample.Data.Sync
             {
                 while (reader.Read())
                 {
-                    IRepositoryInfo createdRepositoryInfo = RepositoryInfoFromDataReader(reader, "Created");
-                    IRepositoryInfo modifiedRepositoryInfo = RepositoryInfoFromDataReader(reader, "Modified");
+                    IReplicaInfo createdReplicaInfo = ReplicaInfoFromDataReader(reader, "Created");
+                    IReplicaInfo modifiedReplicaInfo = ReplicaInfoFromDataReader(reader, "Modified");
 
-                    changes.Add(new SyncableItemInfo { ItemType = typeHandler.TypeName, Created = createdRepositoryInfo, Modified = modifiedRepositoryInfo, Deleted = false });
+                    changes.Add(new SyncableItemInfo { ItemType = typeHandler.TypeName, Created = createdReplicaInfo, Modified = modifiedReplicaInfo, Deleted = false });
                 }
             }
 
@@ -116,10 +116,10 @@ namespace BookSample.Data.Sync
             {
                 while (reader.Read())
                 {
-                    IRepositoryInfo createdRepositoryInfo = RepositoryInfoFromDataReader(reader, "Created");
-                    IRepositoryInfo modifiedRepositoryInfo = RepositoryInfoFromDataReader(reader, "Modified");
+                    IReplicaInfo createdReplicaInfo = ReplicaInfoFromDataReader(reader, "Created");
+                    IReplicaInfo modifiedReplicaInfo = ReplicaInfoFromDataReader(reader, "Modified");
 
-                    changes.Add(new SyncableItemInfo { ItemType = typeHandler.TypeName, Created = createdRepositoryInfo, Modified = modifiedRepositoryInfo, Deleted = true });
+                    changes.Add(new SyncableItemInfo { ItemType = typeHandler.TypeName, Created = createdReplicaInfo, Modified = modifiedReplicaInfo, Deleted = true });
                 }
             }
 
@@ -130,32 +130,32 @@ namespace BookSample.Data.Sync
         {
             var typeHandler = HandlerForItemType(source.ItemType);
             IDbCommand command = _connection.CreateCommand();
-            command.CommandText = String.Format("SELECT CreatedRepos, CreatedTickCount, ModifiedRepos, ModifiedTickCount FROM {0} WHERE CreatedRepos=@CreatedRepos AND CreatedTickCount=@CreatedTick", typeHandler.DbTable);
-            command.AddParameter("@CreatedRepos", GetLocalRepositoryIdForGlobalRepositoryId(source.Created.RepositoryID));
-            command.AddParameter("@CreatedTick", source.Created.RepositoryTickCount);
+            command.CommandText = String.Format("SELECT CreatedReplica, CreatedTickCount, ModifiedReplica, ModifiedTickCount FROM {0} WHERE CreatedReplica=@CreatedReplica AND CreatedTickCount=@CreatedTick", typeHandler.DbTable);
+            command.AddParameter("@CreatedReplica", GetLocalReplicaIdForGlobalReplicaId(source.Created.ReplicaId));
+            command.AddParameter("@CreatedTick", source.Created.ReplicaTickCount);
             using (IDataReader reader = command.ExecuteReader())
             {
                 if (reader.Read())
                 {
-                    IRepositoryInfo createdRepositoryInfo = RepositoryInfoFromDataReader(reader, "Created");
-                    IRepositoryInfo modifiedRepositoryInfo = RepositoryInfoFromDataReader(reader, "Modified");
+                    IReplicaInfo createdReplicaInfo = ReplicaInfoFromDataReader(reader, "Created");
+                    IReplicaInfo modifiedReplicaInfo = ReplicaInfoFromDataReader(reader, "Modified");
 
-                  return new SyncableItemInfo { ItemType = typeHandler.TypeName, Created = createdRepositoryInfo, Modified = modifiedRepositoryInfo, Deleted = false };
+                  return new SyncableItemInfo { ItemType = typeHandler.TypeName, Created = createdReplicaInfo, Modified = modifiedReplicaInfo, Deleted = false };
                 }
             }
 
             command = _connection.CreateCommand();
-            command.CommandText = String.Format("SELECT CreatedRepos, CreatedTickCount, ModifiedRepos, ModifiedTickCount FROM {0} WHERE CreatedRepos=@CreatedRepos AND CreatedTickCount=@CreatedTick AND ItemType={1}", "Tombstones", typeHandler.TypeId);
-            command.AddParameter("@CreatedRepos", GetLocalRepositoryIdForGlobalRepositoryId(source.Created.RepositoryID));
-            command.AddParameter("@CreatedTick", source.Created.RepositoryTickCount);
+            command.CommandText = String.Format("SELECT CreatedReplica, CreatedTickCount, ModifiedReplica, ModifiedTickCount FROM {0} WHERE CreatedReplica=@CreatedReplica AND CreatedTickCount=@CreatedTick AND ItemType={1}", "Tombstones", typeHandler.TypeId);
+            command.AddParameter("@CreatedReplica", GetLocalReplicaIdForGlobalReplicaId(source.Created.ReplicaId));
+            command.AddParameter("@CreatedTick", source.Created.ReplicaTickCount);
             using (IDataReader reader = command.ExecuteReader())
             {
                 if (reader.Read())
                 {
-                    IRepositoryInfo createdRepositoryInfo = RepositoryInfoFromDataReader(reader, "Created");
-                    IRepositoryInfo modifiedRepositoryInfo = RepositoryInfoFromDataReader(reader, "Modified");
+                    IReplicaInfo createdReplicaInfo = ReplicaInfoFromDataReader(reader, "Created");
+                    IReplicaInfo modifiedReplicaInfo = ReplicaInfoFromDataReader(reader, "Modified");
 
-                    return new SyncableItemInfo { ItemType = typeHandler.TypeName, Created = createdRepositoryInfo, Modified = modifiedRepositoryInfo, Deleted = true };
+                    return new SyncableItemInfo { ItemType = typeHandler.TypeName, Created = createdReplicaInfo, Modified = modifiedReplicaInfo, Deleted = true };
                 }
             }
 
@@ -174,69 +174,69 @@ namespace BookSample.Data.Sync
             throw new ArgumentException();
         }
 
-        private IRepositoryInfo RepositoryInfoFromDataReader(IDataReader reader, string fieldPrefix)
+        private IReplicaInfo ReplicaInfoFromDataReader(IDataReader reader, string fieldPrefix)
         {
-            string reposId = GetGlobalRepositoryIdForLocalRepositoryId(Convert.ToInt64(reader[fieldPrefix + "Repos"]));
+            string reposId = GetGlobalReplicaIdForLocalReplicaId(Convert.ToInt64(reader[fieldPrefix + "Replica"]));
             long reposTick = Convert.ToInt64(reader[fieldPrefix + "TickCount"]);
-            return new RepositoryInfo { RepositoryID = reposId, RepositoryTickCount = reposTick };
+            return new ReplicaInfo { ReplicaId = reposId, ReplicaTickCount = reposTick };
         }
 
-        private string GenerateChangeDetectionSQL(IEnumerable<IRepositoryInfo> remoteKnowledge, string tableName)
+        private string GenerateChangeDetectionSQL(IEnumerable<IReplicaInfo> remoteKnowledge, string tableName)
         {
             StringBuilder sql = new StringBuilder();
             StringBuilder sqlNotIn = new StringBuilder();
-            sql.AppendFormat("SELECT CreatedRepos, CreatedTickCount, ModifiedRepos, ModifiedTickCount FROM {0} WHERE (", tableName);
-	        sqlNotIn.Append(" OR (ModifiedRepos NOT IN (");
+            sql.AppendFormat("SELECT CreatedReplica, CreatedTickCount, ModifiedReplica, ModifiedTickCount FROM {0} WHERE (", tableName);
+	        sqlNotIn.Append(" OR (ModifiedReplica NOT IN (");
 
-            bool foundMatchingRepos = false;
+            bool foundMatchingReplica = false;
 
-	        foreach(IRepositoryInfo reposInfo in remoteKnowledge)
+	        foreach(IReplicaInfo reposInfo in remoteKnowledge)
 	        {
-		        long remoteRepositoryTickCount = reposInfo.RepositoryTickCount;
-		        long localReposID = GetLocalRepositoryIdForGlobalRepositoryId(reposInfo.RepositoryID);
+		        long remoteReplicaTickCount = reposInfo.ReplicaTickCount;
+		        long localReplicaID = GetLocalReplicaIdForGlobalReplicaId(reposInfo.ReplicaId);
 
 
 		        /* Check to see if we have a matching repos here*/
-		        if(localReposID != -1)
+		        if(localReplicaID != -1)
 		        {
-			        if(foundMatchingRepos)
+			        if(foundMatchingReplica)
 			        {
                         sql.Append(" OR ");
                         sqlNotIn.Append(", ");
 			        }
 
-                    sql.AppendFormat("(ModifiedRepos = {0} AND ModifiedTickCount > {1})", localReposID, remoteRepositoryTickCount);
+                    sql.AppendFormat("(ModifiedReplica = {0} AND ModifiedTickCount > {1})", localReplicaID, remoteReplicaTickCount);
 
-                    sqlNotIn.AppendFormat("{0}", localReposID);
-			        foundMatchingRepos = true;
+                    sqlNotIn.AppendFormat("{0}", localReplicaID);
+			        foundMatchingReplica = true;
 		        }
 	        }
 
-            if (!foundMatchingRepos)
-                return String.Format("SELECT CreatedRepos, CreatedTickCount, ModifiedRepos, ModifiedTickCount FROM {0}", tableName);
+            if (!foundMatchingReplica)
+                return String.Format("SELECT CreatedReplica, CreatedTickCount, ModifiedReplica, ModifiedTickCount FROM {0}", tableName);
 
             sqlNotIn.Append(")))");
 	        sql.Append(sqlNotIn);
             return sql.ToString();
         }
 
-        internal string GetGlobalRepositoryIdForLocalRepositoryId(long localId)
+        internal string GetGlobalReplicaIdForLocalReplicaId(long localId)
         {
             IDbCommand command = _connection.CreateCommand();
-            command.CommandText = String.Format("SELECT GlobalReposID FROM SyncRepositories WHERE LocalReposID={0}", localId);
+            command.CommandText = String.Format("SELECT GlobalReplicaID FROM SyncReplicaitories WHERE LocalReplicaID={0}", localId);
             return command.ExecuteScalar().ToString();
         }
 
-        internal long GetLocalRepositoryIdForGlobalRepositoryId(string globalId)
+        internal long GetLocalReplicaIdForGlobalReplicaId(string globalId)
         {
             IDbCommand command = _connection.CreateCommand();
-            command.CommandText = String.Format("SELECT LocalReposID FROM SyncRepositories WHERE GlobalReposID='{0}'", escapeSQL(globalId));
+            command.CommandText = String.Format("SELECT LocalReplicaID FROM SyncReplicaitories WHERE GlobalReplicaID='{0}'", escapeSQL(globalId));
             object o = command.ExecuteScalar();
             if (o == null)
             {
-                command.CommandText = String.Format("INSERT INTO SyncRepositories(GlobalReposID,ReposTickCount) VALUES('{0}', 0)", escapeSQL(globalId));
+                command.CommandText = String.Format("INSERT INTO SyncReplicaitories(GlobalReplicaID,ReplicaTickCount) VALUES('{0}', 0)", escapeSQL(globalId));
                 command.ExecuteNonQuery();
-                return GetLocalRepositoryIdForGlobalRepositoryId(globalId);
+                return GetLocalReplicaIdForGlobalReplicaId(globalId);
             }
             return Convert.ToInt64(o);
         }
@@ -273,10 +273,10 @@ namespace BookSample.Data.Sync
         {
             var handler = HandlerForItemType(itemInfo.ItemType);
             IDbCommand command = _connection.CreateCommand();
-            command.CommandText = "DELETE FROM Tombstones WHERE ItemType=@ItemType AND CreatedRepos=@CreatedRepos AND CreatedTickCount=@CreatedTickCount";
+            command.CommandText = "DELETE FROM Tombstones WHERE ItemType=@ItemType AND CreatedReplica=@CreatedReplica AND CreatedTickCount=@CreatedTickCount";
             command.AddParameter("@ItemType", handler.TypeId);
-            command.AddParameter("@CreatedRepos", GetLocalRepositoryIdForGlobalRepositoryId(itemInfo.Created.RepositoryID));
-            command.AddParameter("@CreatedTickCount", itemInfo.Created.RepositoryTickCount);
+            command.AddParameter("@CreatedReplica", GetLocalReplicaIdForGlobalReplicaId(itemInfo.Created.ReplicaId));
+            command.AddParameter("@CreatedTickCount", itemInfo.Created.ReplicaTickCount);
             command.ExecuteNonQuery();
         }
 
@@ -293,23 +293,23 @@ namespace BookSample.Data.Sync
         {
             var handler = HandlerForItemType(itemInfo.ItemType);
             IDbCommand command = _connection.CreateCommand();
-            command.CommandText = "INSERT INTO Tombstones(ItemType, CreatedRepos, CreatedTickCount, ModifiedRepos, ModifiedTickCount) VALUES (@ItemType,@CreatedRepos,@CreatedTick,@ModifiedRepos,@ModifiedTickCount)";
+            command.CommandText = "INSERT INTO Tombstones(ItemType, CreatedReplica, CreatedTickCount, ModifiedReplica, ModifiedTickCount) VALUES (@ItemType,@CreatedReplica,@CreatedTick,@ModifiedReplica,@ModifiedTickCount)";
             command.AddParameter("@ItemType", handler.TypeId);
-            command.AddParameter("@CreatedRepos", GetLocalRepositoryIdForGlobalRepositoryId(itemInfo.Created.RepositoryID));
-            command.AddParameter("@CreatedTick", itemInfo.Created.RepositoryTickCount);
-            command.AddParameter("@ModifiedRepos", GetLocalRepositoryIdForGlobalRepositoryId(itemInfo.Modified.RepositoryID));
-            command.AddParameter("@ModifiedTickCount", itemInfo.Modified.RepositoryTickCount);
+            command.AddParameter("@CreatedReplica", GetLocalReplicaIdForGlobalReplicaId(itemInfo.Created.ReplicaId));
+            command.AddParameter("@CreatedTick", itemInfo.Created.ReplicaTickCount);
+            command.AddParameter("@ModifiedReplica", GetLocalReplicaIdForGlobalReplicaId(itemInfo.Modified.ReplicaId));
+            command.AddParameter("@ModifiedTickCount", itemInfo.Modified.ReplicaTickCount);
             command.ExecuteNonQuery();
         }
 
-        public void UpdateLocalKnowledge(IEnumerable<IRepositoryInfo> remoteKnowledge)
+        public void UpdateLocalKnowledge(IEnumerable<IReplicaInfo> remoteKnowledge)
         {
             foreach (var reposInfo in remoteKnowledge)
             {
                 IDbCommand command = _connection.CreateCommand();
-                command.CommandText = "UPDATE SyncRepositories SET ReposTickCount=@TickCount WHERE GlobalReposID=@ReposID AND ReposTickCount < @TickCount";
-                command.AddParameter("@ReposID", reposInfo.RepositoryID);
-                command.AddParameter("@TickCount", reposInfo.RepositoryTickCount);
+                command.CommandText = "UPDATE SyncReplicaitories SET ReplicaTickCount=@TickCount WHERE GlobalReplicaID=@ReplicaID AND ReplicaTickCount < @TickCount";
+                command.AddParameter("@ReplicaID", reposInfo.ReplicaId);
+                command.AddParameter("@TickCount", reposInfo.ReplicaTickCount);
                 command.ExecuteNonQuery();
             }
         }
@@ -323,26 +323,26 @@ namespace BookSample.Data.Sync
             {
                 synchronizationContext.Post((state) =>
                 {
-                    updateRepository();
+                    updateReplica();
                 }, null);
             }
             else
             {
-                updateRepository();
+                updateReplica();
             }
         }
 
-        private void updateRepository()
+        private void updateReplica()
         {
             foreach (var itemInfo in _pendingUpdates)
             {
                 var handler = HandlerForItemType(itemInfo.ItemType);
-                handler.UpdateInRepos(itemInfo);
+                handler.UpdateInReplica(itemInfo);
             }
             foreach (var itemInfo in _pendingDeletes)
             {
                 var handler = HandlerForItemType(itemInfo.ItemType);
-                handler.RemoveFromRepos(itemInfo);
+                handler.RemoveFromReplica(itemInfo);
             }
         }
 
@@ -358,7 +358,7 @@ namespace BookSample.Data.Sync
             _connection.Close();
         }
 
-        public long IncrementLocalRepositoryTickCount()
+        public long IncrementLocalRepilcaTickCount()
         {
             return _repos.incrementTickCount(_connection, 0);
         }
@@ -372,28 +372,28 @@ namespace BookSample.Data.Sync
         public string GetDbState()
         {
             JObject state = new JObject();
-            var knowledge = GenerateLocalKnowledge().OrderBy((ri) => { return ri.RepositoryID + ri.RepositoryTickCount.ToString(); });
+            var knowledge = GenerateLocalKnowledge().OrderBy((ri) => { return ri.ReplicaId + ri.ReplicaTickCount.ToString(); });
             state.Add("knowledge",SyncUtil.KnowledgeToJson(knowledge));
             foreach(var itemType in GetItemTypes())
             {
                 var handler = HandlerForItemType(itemType);
                 JArray items = new JArray();
                 IDbCommand selectCommand = _connection.CreateCommand();
-                selectCommand.CommandText = String.Format("SELECT CreatedRepos, CreatedTickCount, ModifiedRepos, ModifiedTickCount FROM {0}", handler.DbTable);
+                selectCommand.CommandText = String.Format("SELECT CreatedReplica, CreatedTickCount, ModifiedReplica, ModifiedTickCount FROM {0}", handler.DbTable);
                 IList<ISyncableItemInfo> itemInfos = new List<ISyncableItemInfo>();
                 using (IDataReader reader = selectCommand.ExecuteReader())
                 {
                     while (reader.Read())
                     {
-                        IRepositoryInfo createdRepositoryInfo = RepositoryInfoFromDataReader(reader, "Created");
-                        IRepositoryInfo modifiedRepositoryInfo = RepositoryInfoFromDataReader(reader, "Modified");
+                        IReplicaInfo createdReplicaInfo = ReplicaInfoFromDataReader(reader, "Created");
+                        IReplicaInfo modifiedReplicaInfo = ReplicaInfoFromDataReader(reader, "Modified");
 
-                        itemInfos.Add(new SyncableItemInfo { ItemType = handler.TypeName, Created = createdRepositoryInfo, Modified = modifiedRepositoryInfo, Deleted = false });
+                        itemInfos.Add(new SyncableItemInfo { ItemType = handler.TypeName, Created = createdReplicaInfo, Modified = modifiedReplicaInfo, Deleted = false });
                     }
                 }
 
 
-                var sortedItemInfos = itemInfos.OrderBy((ii) => { return ii.Created.RepositoryID + ii.Created.RepositoryTickCount.ToString(); });
+                var sortedItemInfos = itemInfos.OrderBy((ii) => { return ii.Created.ReplicaId + ii.Created.ReplicaTickCount.ToString(); });
                 foreach (var syncItemInfo in sortedItemInfos)
                 {
                     JObject builder = SyncUtil.JsonItemFromSyncableItemInfo(syncItemInfo);

@@ -25,7 +25,7 @@ namespace SyncFoundation.Client
 
         private IProgress<SyncProgress> _progressWatcher = null;
         private string _remoteSessionId = null;
-        private IEnumerable<IRepositoryInfo> _remoteKnowledge = null;
+        private IEnumerable<IReplicaInfo> _remoteKnowledge = null;
         private Task<IEnumerable<SyncConflict>> _task;
         private CancellationToken _cancellationToken = CancellationToken.None;
         private bool _closed = false;
@@ -174,7 +174,7 @@ namespace SyncFoundation.Client
         {
             List<SyncConflict> conflicts = new List<SyncConflict>();
             IDbCommand getInsertedItemsCommand = connection.CreateCommand();
-            getInsertedItemsCommand.CommandText = String.Format("SELECT ItemID, SyncStatus, ItemType, GlobalCreatedRepos, CreatedTickCount, GlobalModifiedRepos, ModifiedTickCount, ItemData  FROM SyncItems WHERE SyncStatus NOT IN ({0},{1},{2},{3},{4},{5})", 
+            getInsertedItemsCommand.CommandText = String.Format("SELECT ItemID, SyncStatus, ItemType, GlobalCreatedReplica, CreatedTickCount, GlobalModifiedReplica, ModifiedTickCount, ItemData  FROM SyncItems WHERE SyncStatus NOT IN ({0},{1},{2},{3},{4},{5})", 
                 (int)SyncStatus.Insert,
                 (int)SyncStatus.Update,
                 (int)SyncStatus.Delete,
@@ -186,10 +186,10 @@ namespace SyncFoundation.Client
             {
                 while (reader.Read())
                 {
-                    IRepositoryInfo createdRepositoryInfo = SessionDbHelper.RepositoryInfoFromDataReader(reader, "Created");
-                    IRepositoryInfo modifiedRepositoryInfo = SessionDbHelper.RepositoryInfoFromDataReader(reader, "Modified");
+                    IReplicaInfo createdReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Created");
+                    IReplicaInfo modifiedReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Modified");
                     string itemType = (string)reader["ItemType"];
-                    ISyncableItemInfo remoteItemInfo = new SyncableItemInfo { ItemType = itemType, Created = createdRepositoryInfo, Modified = modifiedRepositoryInfo, Deleted = false };
+                    ISyncableItemInfo remoteItemInfo = new SyncableItemInfo { ItemType = itemType, Created = createdReplicaInfo, Modified = modifiedReplicaInfo, Deleted = false };
                     long itemId = Convert.ToInt64(reader["ItemID"]);
                     SyncStatus status = (SyncStatus)reader["SyncStatus"];
 
@@ -208,9 +208,9 @@ namespace SyncFoundation.Client
                         DuplicateStatus dupStatus = _store.GetDuplicateStatus(remoteItemInfo.ItemType, localItemData, remoteItemData);
                         if (dupStatus == DuplicateStatus.Exact)
                         {
-                            long tickCount = _store.IncrementLocalRepositoryTickCount();
-                            IRepositoryInfo modifiedRepos = new RepositoryInfo { RepositoryID = _store.GenerateLocalKnowledge().First().RepositoryID, RepositoryTickCount = tickCount };
-                            SessionDbHelper.ResolveItemNoData(connection, remoteItemInfo, SyncStatus.Update, modifiedRepos); // TODO: Really should have an update status that just updates the modified repos without doing everything else, but this should work
+                            long tickCount = _store.IncrementLocalRepilcaTickCount();
+                            IReplicaInfo modifiedReplica = new ReplicaInfo { ReplicaId = _store.GenerateLocalKnowledge().First().ReplicaId, ReplicaTickCount = tickCount };
+                            SessionDbHelper.ResolveItemNoData(connection, remoteItemInfo, SyncStatus.Update, modifiedReplica); // TODO: Really should have an update status that just updates the modified repos without doing everything else, but this should work
                             continue;
                         }
                     }
@@ -231,15 +231,15 @@ namespace SyncFoundation.Client
             foreach (string itemType in _store.GetItemTypes())
             {
                 IDbCommand getInsertedItemsCommand = connection.CreateCommand();
-                getInsertedItemsCommand.CommandText = String.Format("SELECT ItemID, SyncStatus, ItemType, GlobalCreatedRepos, CreatedTickCount, GlobalModifiedRepos, ModifiedTickCount, ItemData  FROM SyncItems WHERE SyncStatus={0} AND ItemType='{1}'", (int)SyncStatus.Insert, itemType);
+                getInsertedItemsCommand.CommandText = String.Format("SELECT ItemID, SyncStatus, ItemType, GlobalCreatedReplica, CreatedTickCount, GlobalModifiedReplica, ModifiedTickCount, ItemData  FROM SyncItems WHERE SyncStatus={0} AND ItemType='{1}'", (int)SyncStatus.Insert, itemType);
                 using (IDataReader reader = getInsertedItemsCommand.ExecuteReader())
                 {
                     while (reader.Read())
                     {
                         long itemId = Convert.ToInt64(reader["ItemID"]);
-                        IRepositoryInfo createdRepositoryInfo = SessionDbHelper.RepositoryInfoFromDataReader(reader, "Created");
-                        IRepositoryInfo modifiedRepositoryInfo = SessionDbHelper.RepositoryInfoFromDataReader(reader, "Modified");
-                        ISyncableItemInfo remoteItemInfo = new SyncableItemInfo { ItemType = itemType, Created = createdRepositoryInfo, Modified = modifiedRepositoryInfo, Deleted = false };
+                        IReplicaInfo createdReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Created");
+                        IReplicaInfo modifiedReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Modified");
+                        ISyncableItemInfo remoteItemInfo = new SyncableItemInfo { ItemType = itemType, Created = createdReplicaInfo, Modified = modifiedReplicaInfo, Deleted = false };
                         JObject remoteItemData = JObject.Parse((string)reader["ItemData"]);
 
                         foreach (var changedItemInfo in changedItemInfos)
@@ -260,9 +260,9 @@ namespace SyncFoundation.Client
                             if (dupStatus == DuplicateStatus.Exact)
                             {
                                 SessionDbHelper.ReplaceAllItemRefs(connection, _store, remoteItemInfo, changedItemInfo);
-                                long tickCount = _store.IncrementLocalRepositoryTickCount();
-                                IRepositoryInfo modifiedRepos = new RepositoryInfo { RepositoryID = _store.GenerateLocalKnowledge().First().RepositoryID, RepositoryTickCount = tickCount };
-                                SessionDbHelper.ResolveItemNoData(connection, remoteItemInfo, SyncStatus.DeleteNonExisting, modifiedRepos);
+                                long tickCount = _store.IncrementLocalRepilcaTickCount();
+                                IReplicaInfo modifiedReplica = new ReplicaInfo { ReplicaId = _store.GenerateLocalKnowledge().First().ReplicaId, ReplicaTickCount = tickCount };
+                                SessionDbHelper.ResolveItemNoData(connection, remoteItemInfo, SyncStatus.DeleteNonExisting, modifiedReplica);
                                 break;
                             }
                             if (dupStatus == DuplicateStatus.Possible)
@@ -403,12 +403,12 @@ namespace SyncFoundation.Client
             if (_closed)
                 throw new InvalidOperationException();
 
-            long tickCount = _store.IncrementLocalRepositoryTickCount();
-            IRepositoryInfo modifiedRepos = new RepositoryInfo { RepositoryID = _store.GenerateLocalKnowledge().First().RepositoryID, RepositoryTickCount = tickCount };
+            long tickCount = _store.IncrementLocalRepilcaTickCount();
+            IReplicaInfo modifiedReplica = new ReplicaInfo { ReplicaId = _store.GenerateLocalKnowledge().First().ReplicaId, ReplicaTickCount = tickCount };
             SyncStatus resolvedStatus = conflict.RemoteItemInfo.Deleted ? SyncStatus.Delete : SyncStatus.Update;
             using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_localSessionId))
             {
-                SessionDbHelper.ResolveItemNoData(connection, conflict.RemoteItemInfo, resolvedStatus, modifiedRepos);
+                SessionDbHelper.ResolveItemNoData(connection, conflict.RemoteItemInfo, resolvedStatus, modifiedReplica);
             }
         }
 
@@ -417,8 +417,8 @@ namespace SyncFoundation.Client
             if (_closed)
                 throw new InvalidOperationException();
 
-            long tickCount = _store.IncrementLocalRepositoryTickCount();
-            IRepositoryInfo modifiedRepos = new RepositoryInfo { RepositoryID = _store.GenerateLocalKnowledge().First().RepositoryID, RepositoryTickCount = tickCount };
+            long tickCount = _store.IncrementLocalRepilcaTickCount();
+            IReplicaInfo modifiedReplica = new ReplicaInfo { ReplicaId = _store.GenerateLocalKnowledge().First().ReplicaId, ReplicaTickCount = tickCount };
             SyncStatus resolvedStatus = conflict.LocalItemInfo.Deleted ? SyncStatus.Delete : SyncStatus.Update;
             JObject data = JObject.Parse("{item:{itemRefs:[]}}");
 
@@ -432,7 +432,7 @@ namespace SyncFoundation.Client
 
             using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_localSessionId))
             {
-                SessionDbHelper.ResolveItemWithData(connection, conflict.RemoteItemInfo, resolvedStatus, modifiedRepos, data);
+                SessionDbHelper.ResolveItemWithData(connection, conflict.RemoteItemInfo, resolvedStatus, modifiedReplica, data);
             }
         }
 
@@ -441,14 +441,14 @@ namespace SyncFoundation.Client
             if (_closed)
                 throw new InvalidOperationException();
 
-            long tickCount = _store.IncrementLocalRepositoryTickCount();
-            IRepositoryInfo modifiedRepos = new RepositoryInfo { RepositoryID = _store.GenerateLocalKnowledge().First().RepositoryID, RepositoryTickCount = tickCount };
+            long tickCount = _store.IncrementLocalRepilcaTickCount();
+            IReplicaInfo modifiedReplica = new ReplicaInfo { ReplicaId = _store.GenerateLocalKnowledge().First().ReplicaId, ReplicaTickCount = tickCount };
             SyncStatus resolvedStatus = SyncStatus.Update;
             ISyncableItemInfo itemInfo = conflict.RemoteItemInfo;
 
             using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_localSessionId))
             {
-                SessionDbHelper.ResolveItemWithData(connection, itemInfo, resolvedStatus, modifiedRepos, itemData);
+                SessionDbHelper.ResolveItemWithData(connection, itemInfo, resolvedStatus, modifiedReplica, itemData);
             }
         }
 

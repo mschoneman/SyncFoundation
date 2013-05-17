@@ -11,8 +11,8 @@ namespace SyncFoundation.Core
     public class SyncableItemInfo : ISyncableItemInfo
     {
         public string ItemType { get; set; }
-        public IRepositoryInfo Created { get; set; }
-        public IRepositoryInfo Modified { get; set; }
+        public IReplicaInfo Created { get; set; }
+        public IReplicaInfo Modified { get; set; }
         public bool Deleted { get; set; }
     }
 }

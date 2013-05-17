@@ -168,7 +168,7 @@ namespace SyncFoundation.Server
 
             var resp = Request.CreateResponse(HttpStatusCode.OK, string.Empty);
 
-            IEnumerable<RepositoryInfo> remoteKnowledge = SyncUtil.KnowledgeFromJson(request["knowledge"]);
+            IEnumerable<ReplicaInfo> remoteKnowledge = SyncUtil.KnowledgeFromJson(request["knowledge"]);
 
             var json = new JObject();
             using (ISyncableStore store = _userService.GetSyncableStore(_username))
@@ -211,7 +211,7 @@ namespace SyncFoundation.Server
 
             var resp = Request.CreateResponse(HttpStatusCode.OK, string.Empty);
 
-            IEnumerable<RepositoryInfo> remoteKnowledge = SyncUtil.KnowledgeFromJson(request["knowledge"]);
+            IEnumerable<ReplicaInfo> remoteKnowledge = SyncUtil.KnowledgeFromJson(request["knowledge"]);
 
             using (ISyncableStore store = _userService.GetSyncableStore(_username))
             using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_userService.GetSessionId(_username)))

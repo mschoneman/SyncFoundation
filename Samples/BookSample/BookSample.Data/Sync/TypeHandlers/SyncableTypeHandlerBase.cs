@@ -12,10 +12,10 @@ namespace BookSample.Data.Sync.TypeHandlers
 {
     abstract class SyncableTypeHandlerBase : ISyncableTypeHandler
     {
-        private RepositorySyncableStoreAdapter adapter;
-        private ReposItemType reposItemType;
+        private BookRepositorySyncableStoreAdapter adapter;
+        private ReplicaItemType reposItemType;
         private string dbTable;
-        public SyncableTypeHandlerBase(RepositorySyncableStoreAdapter adapter, ReposItemType reposItemType, string dbTable)
+        public SyncableTypeHandlerBase(BookRepositorySyncableStoreAdapter adapter, ReplicaItemType reposItemType, string dbTable)
         {
             this.adapter = adapter;
             this.reposItemType = reposItemType;
@@ -23,7 +23,7 @@ namespace BookSample.Data.Sync.TypeHandlers
         }
 
 
-        protected RepositorySyncableStoreAdapter Adapter
+        protected BookRepositorySyncableStoreAdapter Adapter
         {
             get
             {
@@ -73,9 +73,9 @@ namespace BookSample.Data.Sync.TypeHandlers
         public long GetRowIdFromItemInfo(ISyncableItemInfo itemInfo)
         {
             IDbCommand command = Adapter.Connection.CreateCommand();
-            command.CommandText = String.Format("SELECT RowID FROM {0} WHERE CreatedRepos=@CreatedRepos AND CreatedTickCount=@CreatedTick", DbTable);
-            command.AddParameter("@CreatedRepos", adapter.GetLocalRepositoryIdForGlobalRepositoryId(itemInfo.Created.RepositoryID));
-            command.AddParameter("@CreatedTick", itemInfo.Created.RepositoryTickCount);
+            command.CommandText = String.Format("SELECT RowID FROM {0} WHERE CreatedReplica=@CreatedReplica AND CreatedTickCount=@CreatedTick", DbTable);
+            command.AddParameter("@CreatedReplica", adapter.GetLocalReplicaIdForGlobalReplicaId(itemInfo.Created.ReplicaId));
+            command.AddParameter("@CreatedTick", itemInfo.Created.ReplicaTickCount);
 
             object o = command.ExecuteScalar();
             if (o == null)
@@ -83,16 +83,16 @@ namespace BookSample.Data.Sync.TypeHandlers
             return Convert.ToInt64(o);
         }
 
-        abstract public void UpdateInRepos(SyncFoundation.Core.Interfaces.ISyncableItemInfo itemInfo);
+        abstract public void UpdateInReplica(SyncFoundation.Core.Interfaces.ISyncableItemInfo itemInfo);
 
-        protected ISyncableItemInfo getSyncableItemInfoFrom(ReposItemId reposItemId)
+        protected ISyncableItemInfo getSyncableItemInfoFrom(ReplicaItemId reposItemId)
         {
-            IRepositoryInfo created = new RepositoryInfo { RepositoryID = Adapter.GetGlobalRepositoryIdForLocalRepositoryId(reposItemId.CreationRepositoryLocalId), RepositoryTickCount = reposItemId.CreationTickCount };
-            IRepositoryInfo modified = new RepositoryInfo { RepositoryID = Adapter.GetGlobalRepositoryIdForLocalRepositoryId(reposItemId.ModificationRepositoryLocalId), RepositoryTickCount = reposItemId.ModificationTickCount };
+            IReplicaInfo created = new ReplicaInfo { ReplicaId = Adapter.GetGlobalReplicaIdForLocalReplicaId(reposItemId.CreationReplicaLocalId), ReplicaTickCount = reposItemId.CreationTickCount };
+            IReplicaInfo modified = new ReplicaInfo { ReplicaId = Adapter.GetGlobalReplicaIdForLocalReplicaId(reposItemId.ModificationReplicaLocalId), ReplicaTickCount = reposItemId.ModificationTickCount };
             return new SyncableItemInfo { ItemType = reposItemId.ItemType.ToString(), Created = created, Modified = modified, Deleted = false };
         }
 
-        abstract public void RemoveFromRepos(ISyncableItemInfo itemInfo);
+        abstract public void RemoveFromReplica(ISyncableItemInfo itemInfo);
 
         abstract public DuplicateStatus GetDuplicateStatus(Newtonsoft.Json.Linq.JObject localItemData, Newtonsoft.Json.Linq.JObject remoteItemData);
     }
