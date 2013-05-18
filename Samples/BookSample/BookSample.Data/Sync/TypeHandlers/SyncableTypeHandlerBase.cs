@@ -1,4 +1,5 @@
 ﻿using BookSample.Data.Model;
+using Community.CsharpSqlite.SQLiteClient;
 using SyncFoundation.Core;
 using SyncFoundation.Core.Interfaces;
 using System;
@@ -58,16 +59,35 @@ namespace BookSample.Data.Sync.TypeHandlers
         abstract public void BuildItemData(SyncFoundation.Core.Interfaces.ISyncableItemInfo itemInfo, Newtonsoft.Json.Linq.JObject builder);
         abstract public void SaveItemData(SyncFoundation.Core.Interfaces.ISyncableItemInfo itemInfo, Newtonsoft.Json.Linq.JObject itemData);
 
-        public virtual void DeleteItem(SyncFoundation.Core.Interfaces.ISyncableItemInfo itemInfo)
+        public virtual bool DeleteItem(SyncFoundation.Core.Interfaces.ISyncableItemInfo itemInfo)
         {
             long rowId = GetRowIdFromItemInfo(itemInfo);
             if (rowId != -1)
             {
-                IDbCommand command = adapter.Connection.CreateCommand();
-                command.CommandText = String.Format("DELETE FROM {0} WHERE RowID=@RowID", DbTable);
-                command.AddParameter("@RowID", rowId);
-                command.ExecuteNonQuery();
+                try
+                {
+                    IDbCommand command = adapter.Connection.CreateCommand();
+                    command.CommandText = String.Format("DELETE FROM {0} WHERE RowID=@RowID", DbTable);
+                    command.AddParameter("@RowID", rowId);
+                    command.ExecuteNonQuery();
+                    return true;
+                }
+                catch(SqliteExecutionException e)
+                {
+                    if (e.SqliteErrorCode == 19) // Constraint failed
+                    {
+                        // Update Modified with incremented TickCount
+                        IDbCommand command = Adapter.Connection.CreateCommand();
+                        command.CommandText = String.Format("UPDATE {0} SET ModifiedReplica=0, ModifiedTickCount=@ModifiedTick WHERE RowID=@RowID", DbTable);
+                        command.AddParameter("@RowID", rowId);
+                        command.AddParameter("@ModifiedTick", Adapter.IncrementLocalRepilcaTickCount());
+                        command.ExecuteNonQuery();
+                        return false;
+                    }
+                    throw;
+                }
             }
+            return true;
         }
 
         public long GetRowIdFromItemInfo(ISyncableItemInfo itemInfo)

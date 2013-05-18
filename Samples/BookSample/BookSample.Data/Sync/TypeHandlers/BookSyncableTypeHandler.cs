@@ -73,17 +73,44 @@ namespace BookSample.Data.Sync.TypeHandlers
             }
         }
 
-        public override void DeleteItem(ISyncableItemInfo itemInfo)
+        public override bool DeleteItem(ISyncableItemInfo itemInfo)
         {
             long rowId = GetRowIdFromItemInfo(itemInfo);
             if (rowId != -1)
             {
+                string savepointName = "DeleteBook";
+
                 IDbCommand command = Adapter.Connection.CreateCommand();
-                command.CommandText = "DELETE FROM BookAuthors WHERE BookID = @ID;";
-                command.AddParameter("@ID", rowId);
+                command.CommandText = "SAVEPOINT " + savepointName;
                 command.ExecuteNonQuery();
+                try
+                {
+                    command.CommandText = "DELETE FROM BookAuthors WHERE BookID = @ID;";
+                    command.AddParameter("@ID", rowId);
+                    command.ExecuteNonQuery();
+                    command.Parameters.Clear();
+
+                    if (base.DeleteItem(itemInfo))
+                    {
+                        command.CommandText = "RELEASE " + savepointName;
+                        command.ExecuteNonQuery();
+                        return true;
+                    }
+                    else
+                    {
+                        command.CommandText = "ROLLBACK TO SAVEPOINT " + savepointName;
+                        command.ExecuteNonQuery();
+                        return false;
+                    }
+                }
+                catch (Exception)
+                {
+                    command.CommandText = "ROLLBACK TO SAVEPOINT " + savepointName;
+                    command.ExecuteNonQuery();
+                    throw;
+                }
             }
-            base.DeleteItem(itemInfo);
+            return true;
         }
 
         public override void UpdateInReplica(ISyncableItemInfo itemInfo)

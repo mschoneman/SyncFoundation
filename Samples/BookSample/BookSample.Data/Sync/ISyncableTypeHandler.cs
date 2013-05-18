@@ -19,7 +19,7 @@ namespace BookSample.Data.Sync
 
         void BuildItemData(ISyncableItemInfo itemInfo, JObject builder);
         void SaveItemData(ISyncableItemInfo itemInfo, JObject itemData);
-        void DeleteItem(ISyncableItemInfo itemInfo);
+        bool DeleteItem(ISyncableItemInfo itemInfo);
 
         void UpdateInReplica(ISyncableItemInfo itemInfo);
         void RemoveFromReplica(ISyncableItemInfo itemInfo);

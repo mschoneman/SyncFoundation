@@ -47,7 +47,7 @@ namespace BookSample.Data
 
 
         private const string itemIdFieldsForSelect = "_rowid_ AS RowID, CreatedReplica, CreatedTickCount, ModifiedReplica, ModifiedTickCount";
-        private const string itemIdFieldsAndForiegnKeysForCreate = "CreatedReplica INTEGER, CreatedTickCount INTEGER, ModifiedReplica INTEGER, ModifiedTickCount INTEGER, FOREIGN KEY(CreatedReplica) REFERENCES SyncReplicaitories(LocalReplicaID), FOREIGN KEY(ModifiedReplica) REFERENCES SyncReplicaitories(LocalReplicaID)";
+        private const string itemIdFieldsAndForiegnKeysForCreate = "CreatedReplica INTEGER, CreatedTickCount INTEGER, ModifiedReplica INTEGER, ModifiedTickCount INTEGER, FOREIGN KEY(CreatedReplica) REFERENCES SyncReplicas(LocalReplicaID), FOREIGN KEY(ModifiedReplica) REFERENCES SyncReplicas(LocalReplicaID)";
 
         #region SQLite "DbProviderFactory"
         private class SqliteClientFactory
@@ -136,9 +136,9 @@ namespace BookSample.Data
             command.ExecuteNonQuery();
             try
             {
-                command.CommandText = String.Format("UPDATE SyncReplicaitories SET ReplicaTickCount = ReplicaTickCount + 1 WHERE LocalReplicaID = {0}", localReplicaId);
+                command.CommandText = String.Format("UPDATE SyncReplicas SET ReplicaTickCount = ReplicaTickCount + 1 WHERE LocalReplicaID = {0}", localReplicaId);
                 command.ExecuteNonQuery();
-                command.CommandText = String.Format("SELECT ReplicaTickCount FROM SyncReplicaitories WHERE LocalReplicaID = {0}", localReplicaId);
+                command.CommandText = String.Format("SELECT ReplicaTickCount FROM SyncReplicas WHERE LocalReplicaID = {0}", localReplicaId);
                 object o = command.ExecuteScalar();
                 return (int)o;
             }
@@ -170,12 +170,12 @@ namespace BookSample.Data
                     command.CommandText = String.Format("INSERT INTO DBInfo VALUES(1,'Schema', '', {0} )", 1);
                     command.ExecuteNonQuery();
 
-                    command.CommandText = "CREATE TABLE SyncReplicaitories(LocalReplicaID INTEGER PRIMARY KEY AUTOINCREMENT, GlobalReplicaID TEXT, ReplicaDesc TEXT, ReplicaName TEXT, ReplicaPassword TEXT, ReplicaTickCount INTEGER, ReplicaFailedLoginCount INTEGER);";
+                    command.CommandText = "CREATE TABLE SyncReplicas(LocalReplicaID INTEGER PRIMARY KEY AUTOINCREMENT, GlobalReplicaID TEXT, ReplicaDesc TEXT, ReplicaName TEXT, ReplicaPassword TEXT, ReplicaTickCount INTEGER, ReplicaFailedLoginCount INTEGER);";
                     command.ExecuteNonQuery();
 
                     loadDefaultReplicaitories(trans);
 
-                    command.CommandText = "CREATE TABLE Tombstones(TombstoneID INTEGER PRIMARY KEY AUTOINCREMENT, ItemType INTEGER, CreatedReplica INTEGER, CreatedTickCount INTEGER, ModifiedReplica INTEGER, ModifiedTickCount INTEGER, DeletionDateTime DATETIME, FOREIGN KEY(CreatedReplica) REFERENCES SyncReplicaitories(LocalReplicaID), FOREIGN KEY(ModifiedReplica) REFERENCES SyncReplicaitories(LocalReplicaID) );";
+                    command.CommandText = "CREATE TABLE Tombstones(TombstoneID INTEGER PRIMARY KEY AUTOINCREMENT, ItemType INTEGER, CreatedReplica INTEGER, CreatedTickCount INTEGER, ModifiedReplica INTEGER, ModifiedTickCount INTEGER, DeletionDateTime DATETIME, FOREIGN KEY(CreatedReplica) REFERENCES SyncReplicas(LocalReplicaID), FOREIGN KEY(ModifiedReplica) REFERENCES SyncReplicas(LocalReplicaID) );";
                     command.ExecuteNonQuery();
 
                     command.CommandText = String.Format("CREATE TABLE People(PersonID INTEGER PRIMARY KEY AUTOINCREMENT, PersonName TEXT, {0});", itemIdFieldsAndForiegnKeysForCreate);
@@ -206,11 +206,11 @@ namespace BookSample.Data
             command.Transaction = trans;
 
             Guid.NewGuid().ToString();
-            command.CommandText = String.Format("INSERT INTO SyncReplicaitories(LocalReplicaID,GlobalReplicaID,ReplicaTickCount,ReplicaDesc) VALUES(0,'{0}',{1},'')", Guid.NewGuid().ToString(), 0);
+            command.CommandText = String.Format("INSERT INTO SyncReplicas(LocalReplicaID,GlobalReplicaID,ReplicaTickCount,ReplicaDesc) VALUES(0,'{0}',{1},'')", Guid.NewGuid().ToString(), 0);
             command.ExecuteNonQuery();
 
             /* default values belong to the default replica */
-            command.CommandText = String.Format("INSERT INTO SyncReplicaitories(LocalReplicaID,GlobalReplicaID,ReplicaTickCount,ReplicaDesc) VALUES(1,'DEFAULT_REPOS',{0},'Program Default Replica')", 0);
+            command.CommandText = String.Format("INSERT INTO SyncReplicas(LocalReplicaID,GlobalReplicaID,ReplicaTickCount,ReplicaDesc) VALUES(1,'DEFAULT_REPOS',{0},'Program Default Replica')", 0);
             command.ExecuteNonQuery();
         }
 

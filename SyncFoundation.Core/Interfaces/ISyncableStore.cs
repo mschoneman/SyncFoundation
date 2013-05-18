@@ -12,6 +12,7 @@ namespace SyncFoundation.Core.Interfaces
         IEnumerable<string> GetItemTypes();
 
         long IncrementLocalRepilcaTickCount();
+        string GetLocalReplicaId();
 
         IEnumerable<IReplicaInfo> GenerateLocalKnowledge();
         IEnumerable<ISyncableItemInfo> LocateChangedItems(IEnumerable<IReplicaInfo> remoteKnowledge);

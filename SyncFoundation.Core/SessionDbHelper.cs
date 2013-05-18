@@ -179,7 +179,7 @@ namespace SyncFoundation.Core
                         updateCommand.AddParameter("@ItemID", reader["ItemID"]);
                         updateCommand.AddParameter("@ItemData", itemData.ToString());
                         updateCommand.AddParameter("@TickCount", store.IncrementLocalRepilcaTickCount());
-                        updateCommand.AddParameter("@ModifiedReplica", store.GenerateLocalKnowledge().First().ReplicaId);
+                        updateCommand.AddParameter("@ModifiedReplica", store.GetLocalReplicaId());
                         updateCommand.ExecuteNonQuery();
                     }
                 }

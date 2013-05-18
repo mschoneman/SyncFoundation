@@ -209,7 +209,7 @@ namespace SyncFoundation.Client
                         if (dupStatus == DuplicateStatus.Exact)
                         {
                             long tickCount = _store.IncrementLocalRepilcaTickCount();
-                            IReplicaInfo modifiedReplica = new ReplicaInfo { ReplicaId = _store.GenerateLocalKnowledge().First().ReplicaId, ReplicaTickCount = tickCount };
+                            IReplicaInfo modifiedReplica = new ReplicaInfo { ReplicaId = _store.GetLocalReplicaId(), ReplicaTickCount = tickCount };
                             SessionDbHelper.ResolveItemNoData(connection, remoteItemInfo, SyncStatus.Update, modifiedReplica); // TODO: Really should have an update status that just updates the modified repos without doing everything else, but this should work
                             continue;
                         }
@@ -261,7 +261,7 @@ namespace SyncFoundation.Client
                             {
                                 SessionDbHelper.ReplaceAllItemRefs(connection, _store, remoteItemInfo, changedItemInfo);
                                 long tickCount = _store.IncrementLocalRepilcaTickCount();
-                                IReplicaInfo modifiedReplica = new ReplicaInfo { ReplicaId = _store.GenerateLocalKnowledge().First().ReplicaId, ReplicaTickCount = tickCount };
+                                IReplicaInfo modifiedReplica = new ReplicaInfo { ReplicaId = _store.GetLocalReplicaId(), ReplicaTickCount = tickCount };
                                 SessionDbHelper.ResolveItemNoData(connection, remoteItemInfo, SyncStatus.DeleteNonExisting, modifiedReplica);
                                 break;
                             }
@@ -404,7 +404,7 @@ namespace SyncFoundation.Client
                 throw new InvalidOperationException();
 
             long tickCount = _store.IncrementLocalRepilcaTickCount();
-            IReplicaInfo modifiedReplica = new ReplicaInfo { ReplicaId = _store.GenerateLocalKnowledge().First().ReplicaId, ReplicaTickCount = tickCount };
+            IReplicaInfo modifiedReplica = new ReplicaInfo { ReplicaId = _store.GetLocalReplicaId(), ReplicaTickCount = tickCount };
             SyncStatus resolvedStatus = conflict.RemoteItemInfo.Deleted ? SyncStatus.Delete : SyncStatus.Update;
             using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_localSessionId))
             {
@@ -418,7 +418,7 @@ namespace SyncFoundation.Client
                 throw new InvalidOperationException();
 
             long tickCount = _store.IncrementLocalRepilcaTickCount();
-            IReplicaInfo modifiedReplica = new ReplicaInfo { ReplicaId = _store.GenerateLocalKnowledge().First().ReplicaId, ReplicaTickCount = tickCount };
+            IReplicaInfo modifiedReplica = new ReplicaInfo { ReplicaId = _store.GetLocalReplicaId(), ReplicaTickCount = tickCount };
             SyncStatus resolvedStatus = conflict.LocalItemInfo.Deleted ? SyncStatus.Delete : SyncStatus.Update;
             JObject data = JObject.Parse("{item:{itemRefs:[]}}");
 
@@ -442,7 +442,7 @@ namespace SyncFoundation.Client
                 throw new InvalidOperationException();
 
             long tickCount = _store.IncrementLocalRepilcaTickCount();
-            IReplicaInfo modifiedReplica = new ReplicaInfo { ReplicaId = _store.GenerateLocalKnowledge().First().ReplicaId, ReplicaTickCount = tickCount };
+            IReplicaInfo modifiedReplica = new ReplicaInfo { ReplicaId = _store.GetLocalReplicaId(), ReplicaTickCount = tickCount };
             SyncStatus resolvedStatus = SyncStatus.Update;
             ISyncableItemInfo itemInfo = conflict.RemoteItemInfo;
 

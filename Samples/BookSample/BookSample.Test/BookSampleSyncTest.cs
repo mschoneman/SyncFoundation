@@ -1069,5 +1069,89 @@ namespace BookSample.Test
             }
         }
 
+        [TestMethod]
+        public void TestSyncBookRemoveAndAddAuthorModification()
+        {
+            resetCloud();
+            string file1 = "TEST1.sqlite";
+            string file2 = "TEST2.sqlite";
+
+            using (var adapter1 = GetAdapter(file1))
+            using (var adapter2 = GetAdapter(file2))
+            {
+                addBook(adapter1, "Book 1");
+                addPerson(adapter1, "Person 1");
+
+                var state1 = adapter1.GetDbState();
+                var state2 = adapter2.GetDbState();
+                syncAdatapersAssertNoConflicts(adapter1, adapter2);
+                var state3 = adapter1.GetDbState();
+                var state4 = adapter2.GetDbState();
+
+                adapter1.BookRepository.DeletePerson(adapter1.BookRepository.AllPeople[0]);
+                addPersonToBook(adapter2, "Book 1", "Person 1");
+
+                var state5 = adapter1.GetDbState();
+                var state6 = adapter2.GetDbState();
+                syncAdatapersAssertNoConflicts(adapter1, adapter2);
+                var state7 = adapter1.GetDbState();
+                var state8 = adapter2.GetDbState();
+
+                Assert.AreEqual(1, adapter1.BookRepository.AllPeople.Count);
+                Assert.AreEqual(1, adapter2.BookRepository.AllPeople.Count);
+                Assert.AreEqual(1, adapter1.BookRepository.AllBooks.Count);
+                Assert.AreEqual(1, adapter2.BookRepository.AllBooks.Count);
+                Assert.AreEqual(1, adapter1.BookRepository.AllBooks[0].Authors.Count);
+                Assert.AreEqual(1, adapter2.BookRepository.AllBooks[0].Authors.Count);
+
+                Assert.AreNotEqual(state1, state2);
+                Assert.AreEqual(state3, state4);
+                Assert.AreNotEqual(state5, state6);
+                Assert.AreEqual(state7, state8);
+            }
+        }
+
+        [TestMethod]
+        public void TestSyncBookAddAndRemoveAuthorModification()
+        {
+            resetCloud();
+            string file1 = "TEST1.sqlite";
+            string file2 = "TEST2.sqlite";
+
+            using (var adapter1 = GetAdapter(file1))
+            using (var adapter2 = GetAdapter(file2))
+            {
+                addBook(adapter1, "Book 1");
+                addPerson(adapter1, "Person 1");
+
+                var state1 = adapter1.GetDbState();
+                var state2 = adapter2.GetDbState();
+                syncAdatapersAssertNoConflicts(adapter1, adapter2);
+                var state3 = adapter1.GetDbState();
+                var state4 = adapter2.GetDbState();
+
+                addPersonToBook(adapter1, "Book 1", "Person 1");
+                adapter2.BookRepository.DeletePerson(adapter2.BookRepository.AllPeople[0]);
+
+                var state5 = adapter1.GetDbState();
+                var state6 = adapter2.GetDbState();
+                syncAdatapersAssertNoConflicts(adapter1, adapter2);
+                var state7 = adapter1.GetDbState();
+                var state8 = adapter2.GetDbState();
+
+                Assert.AreEqual(1, adapter1.BookRepository.AllPeople.Count);
+                Assert.AreEqual(1, adapter2.BookRepository.AllPeople.Count);
+                Assert.AreEqual(1, adapter1.BookRepository.AllBooks.Count);
+                Assert.AreEqual(1, adapter2.BookRepository.AllBooks.Count);
+                Assert.AreEqual(1, adapter1.BookRepository.AllBooks[0].Authors.Count);
+                Assert.AreEqual(1, adapter2.BookRepository.AllBooks[0].Authors.Count);
+
+                Assert.AreNotEqual(state1, state2);
+                Assert.AreEqual(state3, state4);
+                Assert.AreNotEqual(state5, state6);
+                Assert.AreEqual(state7, state8);
+            }
+        }
+
     }
 }

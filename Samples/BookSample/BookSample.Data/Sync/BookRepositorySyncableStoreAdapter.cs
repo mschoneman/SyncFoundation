@@ -14,7 +14,7 @@ using System.Threading;
 
 namespace BookSample.Data.Sync
 {
-    public class BookRepositorySyncableStoreAdapter : ISyncableStore, IDisposable
+    public class BookRepositorySyncableStoreAdapter : ISyncableStore
     {
         private BookRepository _repos;
         private IDbConnection _connection;
@@ -32,11 +32,6 @@ namespace BookSample.Data.Sync
             _syncableTypes.Add(new PersonSyncableTypeHandler(this));
             _syncableTypes.Add(new BookSyncableTypeHandler(this));
             this.synchronizationContext = SynchronizationContext.Current;
-        }
-
-        public void Close()
-        {
-            _connection.Close();
         }
 
         public BookRepository BookRepository
@@ -67,7 +62,7 @@ namespace BookSample.Data.Sync
         {
             List<IReplicaInfo> knowledge = new List<IReplicaInfo>();
             IDbCommand select = _connection.CreateCommand();
-            select.CommandText = String.Format("SELECT GlobalReplicaID,ReplicaTickCount FROM SyncReplicaitories");
+            select.CommandText = String.Format("SELECT GlobalReplicaID,ReplicaTickCount FROM SyncReplicas");
             using (IDataReader reader = select.ExecuteReader())
             {
                 while (reader.Read())
@@ -223,18 +218,18 @@ namespace BookSample.Data.Sync
         internal string GetGlobalReplicaIdForLocalReplicaId(long localId)
         {
             IDbCommand command = _connection.CreateCommand();
-            command.CommandText = String.Format("SELECT GlobalReplicaID FROM SyncReplicaitories WHERE LocalReplicaID={0}", localId);
+            command.CommandText = String.Format("SELECT GlobalReplicaID FROM SyncReplicas WHERE LocalReplicaID={0}", localId);
             return command.ExecuteScalar().ToString();
         }
 
         internal long GetLocalReplicaIdForGlobalReplicaId(string globalId)
         {
             IDbCommand command = _connection.CreateCommand();
-            command.CommandText = String.Format("SELECT LocalReplicaID FROM SyncReplicaitories WHERE GlobalReplicaID='{0}'", escapeSQL(globalId));
+            command.CommandText = String.Format("SELECT LocalReplicaID FROM SyncReplicas WHERE GlobalReplicaID='{0}'", escapeSQL(globalId));
             object o = command.ExecuteScalar();
             if (o == null)
             {
-                command.CommandText = String.Format("INSERT INTO SyncReplicaitories(GlobalReplicaID,ReplicaTickCount) VALUES('{0}', 0)", escapeSQL(globalId));
+                command.CommandText = String.Format("INSERT INTO SyncReplicas(GlobalReplicaID,ReplicaTickCount) VALUES('{0}', 0)", escapeSQL(globalId));
                 command.ExecuteNonQuery();
                 return GetLocalReplicaIdForGlobalReplicaId(globalId);
             }
@@ -284,9 +279,10 @@ namespace BookSample.Data.Sync
         {
             InsertTombstone(itemInfo);
 
-            HandlerForItemType(itemInfo.ItemType).DeleteItem(itemInfo);
-
-            _pendingDeletes.Add(itemInfo);
+            if(HandlerForItemType(itemInfo.ItemType).DeleteItem(itemInfo))
+                _pendingDeletes.Add(itemInfo);
+            else
+                _pendingUpdates.Add(itemInfo);
         }
 
         private void InsertTombstone(ISyncableItemInfo itemInfo)
@@ -307,7 +303,7 @@ namespace BookSample.Data.Sync
             foreach (var reposInfo in remoteKnowledge)
             {
                 IDbCommand command = _connection.CreateCommand();
-                command.CommandText = "UPDATE SyncReplicaitories SET ReplicaTickCount=@TickCount WHERE GlobalReplicaID=@ReplicaID AND ReplicaTickCount < @TickCount";
+                command.CommandText = "UPDATE SyncReplicas SET ReplicaTickCount=@TickCount WHERE GlobalReplicaID=@ReplicaID AND ReplicaTickCount < @TickCount";
                 command.AddParameter("@ReplicaID", reposInfo.ReplicaId);
                 command.AddParameter("@TickCount", reposInfo.ReplicaTickCount);
                 command.ExecuteNonQuery();
@@ -363,6 +359,10 @@ namespace BookSample.Data.Sync
             return _repos.incrementTickCount(_connection, 0);
         }
 
+        public string GetLocalReplicaId()
+        {
+            return GetGlobalReplicaIdForLocalReplicaId(0);
+        }
 
         public DuplicateStatus GetDuplicateStatus(string itemType, JObject localItemData, JObject remoteItemData)
         {
