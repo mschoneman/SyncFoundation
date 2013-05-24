@@ -7,7 +7,12 @@ using System.Data;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+#if NETFX_CORE
+using Windows.Security.Cryptography;
+using Windows.Security.Cryptography.Core;
+#else
 using System.Security.Cryptography;
+#endif
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -76,12 +81,41 @@ namespace SyncFoundation.Client
             return response;
         }
 
-        private void addCredentials(JObject request)
+        private byte[] generateNonce()
         {
-            string now = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
+#if NETFX_CORE
+            byte[] nonce;
+            CryptographicBuffer.CopyToByteArray(CryptographicBuffer.GenerateRandom(16), out nonce);
+            return nonce;
+#else
             byte[] nonce = new byte[16];
             RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
             rng.GetBytes(nonce);
+            return nonce;
+#endif
+        }
+
+        private byte[] computeHash(byte[] source)
+        {
+#if NETFX_CORE
+            var bufSource = CryptographicBuffer.CreateFromByteArray(source);
+            // Create a HashAlgorithmProvider object.
+            var hashProvider = HashAlgorithmProvider.OpenAlgorithm(HashAlgorithmNames.Sha1);
+
+            // Hash the message.
+            var buffHash = hashProvider.HashData(bufSource);
+            byte[] digest;
+            CryptographicBuffer.CopyToByteArray(buffHash, out digest);
+            return digest;
+#else
+            return new SHA1Managed().ComputeHash(digestSource);
+#endif
+        }
+
+        private void addCredentials(JObject request)
+        {
+            string now = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
+            byte[] nonce = generateNonce();
             byte[] created = Encoding.UTF8.GetBytes(now);
             byte[] password = Encoding.UTF8.GetBytes(_password);
             byte[] digestSource = new byte[nonce.Length + created.Length + password.Length];
@@ -94,7 +128,7 @@ namespace SyncFoundation.Client
                 digestSource[created.Length + nonce.Length + i] = password[i];
 
 
-            byte[] digestBytes = new SHA1Managed().ComputeHash(digestSource);
+            byte[] digestBytes = computeHash(digestSource);
             string digest = Convert.ToBase64String(digestBytes);
 
             request.Add("username", _username);
