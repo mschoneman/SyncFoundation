@@ -1153,5 +1153,73 @@ namespace BookSample.Test
             }
         }
 
+
+        [TestMethod]
+        public void TestSyncBookAdd100BooksAndPeople()
+        {
+            resetCloud();
+            string file1 = "TEST1.sqlite";
+            string file2 = "TEST2.sqlite";
+
+            using (var adapter1 = GetAdapter(file1))
+            using (var adapter2 = GetAdapter(file2))
+            {
+                int count = 100;
+                for (int i = 0; i < count; i++)
+                {
+                    addBook(adapter1, String.Format("Book {0}", i));
+                    addPerson(adapter1, String.Format("Person {0}", i));
+                }
+
+                var state1 = adapter1.GetDbState();
+                var state2 = adapter2.GetDbState();
+                syncAdatapersAssertNoConflicts(adapter1, adapter2);
+                var state3 = adapter1.GetDbState();
+                var state4 = adapter2.GetDbState();
+
+
+                Assert.AreEqual(count, adapter1.BookRepository.AllPeople.Count);
+                Assert.AreEqual(count, adapter2.BookRepository.AllPeople.Count);
+                Assert.AreEqual(count, adapter1.BookRepository.AllBooks.Count);
+                Assert.AreEqual(count, adapter2.BookRepository.AllBooks.Count);
+
+                Assert.AreNotEqual(state1, state2);
+                Assert.AreEqual(state3, state4);
+            }
+        }
+
+        [TestMethod]
+        public void TestSyncBookAdd1000BooksAndPeople()
+        {
+            resetCloud();
+            string file1 = "TEST1.sqlite";
+            string file2 = "TEST2.sqlite";
+
+            using (var adapter1 = GetAdapter(file1))
+            using (var adapter2 = GetAdapter(file2))
+            {
+                int count = 1000;
+                for (int i = 0; i < count; i++)
+                {
+                    addBook(adapter1, String.Format("Book {0}", i));
+                    addPerson(adapter1, String.Format("Person {0}", i));
+                }
+
+                var state1 = adapter1.GetDbState();
+                var state2 = adapter2.GetDbState();
+                syncAdatapersAssertNoConflicts(adapter1, adapter2);
+                var state3 = adapter1.GetDbState();
+                var state4 = adapter2.GetDbState();
+
+
+                Assert.AreEqual(count, adapter1.BookRepository.AllPeople.Count);
+                Assert.AreEqual(count, adapter2.BookRepository.AllPeople.Count);
+                Assert.AreEqual(count, adapter1.BookRepository.AllBooks.Count);
+                Assert.AreEqual(count, adapter2.BookRepository.AllBooks.Count);
+
+                Assert.AreNotEqual(state1, state2);
+                Assert.AreEqual(state3, state4);
+            }
+        }
     }
 }

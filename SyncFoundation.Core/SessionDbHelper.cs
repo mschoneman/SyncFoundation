@@ -68,10 +68,33 @@ namespace SyncFoundation.Core
             command.ExecuteNonQuery();
         }
 
-        public static void SaveItemPlaceHolder(IDbConnection connection, SyncStatus status, ISyncableItemInfo remoteSyncableItemInfo)
+        public static void ClearSyncItems(IDbConnection connection)
         {
             IDbCommand command = connection.CreateCommand();
-            command.CommandText = "INSERT INTO SyncItems(SyncStatus, ItemType, GlobalCreatedReplica, CreatedTickCount, GlobalModifiedReplica, ModifiedTickCount, ItemData) VALUES(@SyncStatus,@ItemType,@CreatedReplica,@CreatedTick,@ModifiedReplica,@ModifiedTick,@ItemData)";
+            command.CommandText = "DELETE FROM SyncItems";
+            command.ExecuteNonQuery();
+        }
+
+        public static void SaveItemPlaceHolders(IDbConnection connection, int changeCount)
+        {
+            IDbCommand command = connection.CreateCommand();
+            command.CommandText = "BEGIN";
+            command.ExecuteNonQuery();
+            for (int itemNumber = 1; itemNumber <= changeCount; itemNumber++)
+            {
+                command.CommandText = "INSERT INTO SyncItems(RowID) VALUES(@RowID)";
+                command.AddParameter("@RowID", itemNumber);
+                command.ExecuteNonQuery();
+            }
+            command.CommandText = "COMMIT";
+            command.ExecuteNonQuery();
+        }
+
+        public static void UpdateItemPlaceholderData(IDbConnection connection, int itemNumber, SyncStatus status, ISyncableItemInfo remoteSyncableItemInfo, JObject itemData)
+        {
+            IDbCommand command = connection.CreateCommand();
+            command.CommandText = "UPDATE SyncItems SET SyncStatus=@SyncStatus, ItemType=@ItemType, GlobalCreatedReplica=@CreatedReplica, CreatedTickCount=@CreatedTick, GlobalModifiedReplica=@ModifiedReplica, ModifiedTickCount=@ModifiedTick, ItemData=@ItemData WHERE RowID=@RowID";
+            command.AddParameter("@RowID", itemNumber);
             command.AddParameter("@SyncStatus", status);
             command.AddParameter("@ItemType", remoteSyncableItemInfo.ItemType);
             command.AddParameter("@CreatedReplica", remoteSyncableItemInfo.Created.ReplicaId);
@@ -81,20 +104,7 @@ namespace SyncFoundation.Core
             if (status == SyncStatus.Delete || status == SyncStatus.DeleteNonExisting)
                 command.AddParameter("@ItemData", "{item:{itemRefs:[]}}");
             else
-                command.AddParameter("@ItemData", DBNull.Value);
-            command.ExecuteNonQuery();
-        }
-
-        public static void UpdateItemPlaceholderData(IDbConnection connection, ISyncableItemInfo remoteSyncableItemInfo, JObject itemData)
-        {
-            IDbCommand command = connection.CreateCommand();
-            command.CommandText = "UPDATE SyncItems SET ItemData=@ItemData WHERE ItemType=@ItemType AND GlobalCreatedReplica=@CreatedReplica AND CreatedTickCount=@CreatedTick AND GlobalModifiedReplica=@ModifiedReplica AND ModifiedTickCount=@ModifiedTick";
-            command.AddParameter("@ItemType", remoteSyncableItemInfo.ItemType);
-            command.AddParameter("@CreatedReplica", remoteSyncableItemInfo.Created.ReplicaId);
-            command.AddParameter("@CreatedTick", remoteSyncableItemInfo.Created.ReplicaTickCount);
-            command.AddParameter("@ModifiedReplica", remoteSyncableItemInfo.Modified.ReplicaId);
-            command.AddParameter("@ModifiedTick", remoteSyncableItemInfo.Modified.ReplicaTickCount);
-            command.AddParameter("@ItemData", itemData.ToString());
+                command.AddParameter("@ItemData", itemData.ToString());
             command.ExecuteNonQuery();
         }
 

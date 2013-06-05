@@ -68,7 +68,7 @@ namespace SyncFoundation.Client
             string responseString = await responseMessage.Content.ReadAsStringAsync();
 
             if (!responseMessage.IsSuccessStatusCode)
-                throw new Exception("Remote call failed:" + responseString);
+                throw new Exception(String.Format("Remote call failed (HTTP Status Code {0}): {1}", responseMessage.StatusCode, responseString));
 
             System.Diagnostics.Debug.WriteLine("RESPONSE:\n" + responseString);
             JObject response = JObject.Parse(responseString);
@@ -108,7 +108,7 @@ namespace SyncFoundation.Client
             CryptographicBuffer.CopyToByteArray(buffHash, out digest);
             return digest;
 #else
-            return new SHA1Managed().ComputeHash(digestSource);
+            return new SHA1Managed().ComputeHash(source);
 #endif
         }
 
@@ -360,7 +360,7 @@ namespace SyncFoundation.Client
             var changedItemInfos = _store.LocateChangedItems(_remoteKnowledge);
 
             request.Add(new JProperty("knowledge", SyncUtil.KnowledgeToJson(localKnowledge)));
-            request.Add(new JProperty("changes", SyncUtil.JsonItemArrayFromSyncableItemInfoEnumberable(changedItemInfos)));
+            request.Add(new JProperty("changeCount", changedItemInfos.Count()));
 
             JObject response = await sendRequestAsync(new Uri(_remoteAddress, "putChanges"), request);
 
@@ -375,18 +375,18 @@ namespace SyncFoundation.Client
             {
                 i++;
                 reportProgressAndCheckCacellation(new SyncProgress() { Message = String.Format("Pushing Item Change {0} of {1}", i, totalChanges) });
-                if (syncItemInfo.Deleted)
-                    continue;
-                await pushItemData(syncItemInfo);
+                await pushItemData(i, syncItemInfo);
             }
         }
 
-        private async Task pushItemData(ISyncableItemInfo syncItemInfo)
+        private async Task pushItemData(int changeNumber, ISyncableItemInfo syncItemInfo)
         {
             JObject request = new JObject();
             addCredentials(request);
+            request.Add("changeNumber", changeNumber);
             JObject builder = SyncUtil.JsonItemFromSyncableItemInfo(syncItemInfo);
-            _store.BuildItemData(syncItemInfo, builder);
+            if(!syncItemInfo.Deleted)
+                _store.BuildItemData(syncItemInfo, builder);
             request.Add(new JProperty("item", builder));
             JObject response = await sendRequestAsync(new Uri(_remoteAddress, "putItemData"), request);
         }

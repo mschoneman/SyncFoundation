@@ -216,21 +216,12 @@ namespace SyncFoundation.Server
             using (ISyncableStore store = _userService.GetSyncableStore(_username))
             using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_userService.GetSessionId(_username)))
             {
+                SessionDbHelper.ClearSyncItems(connection);
+
                 SessionDbHelper.SaveRemoteKnowledge(connection, remoteKnowledge);
 
-                var localKnowledge = store.GenerateLocalKnowledge();
-
-                JArray changes = (JArray)request["changes"];
-                for (int i = 0; i < changes.Count; i++)
-                {
-                    ISyncableItemInfo remoteSyncableItemInfo = SyncUtil.SyncableItemInfoFromJson(changes[i]);
-                    if (SyncUtil.KnowledgeContains(localKnowledge, remoteSyncableItemInfo.Modified))
-                        continue; // Obsolete change
-
-                    ISyncableItemInfo localSyncableItemInfo = store.LocateCurrentItemInfo(remoteSyncableItemInfo);
-                    SyncStatus status = SyncUtil.CalculateSyncStatus(remoteSyncableItemInfo, localSyncableItemInfo, remoteKnowledge);
-                    SessionDbHelper.SaveItemPlaceHolder(connection, status, remoteSyncableItemInfo);
-                }
+                int changeCount = (int)request["changeCount"];
+                SessionDbHelper.SaveItemPlaceHolders(connection, changeCount);
             }
 
             var json = new JObject();
@@ -248,10 +239,15 @@ namespace SyncFoundation.Server
             ISyncableItemInfo remoteSyncableItemInfo = SyncUtil.SyncableItemInfoFromJson(request["item"]);
             JObject itemData = new JObject();
             itemData.Add("item", request["item"]);
+            int changeNumber = (int)request["changeNumber"];
 
+            using (ISyncableStore store = _userService.GetSyncableStore(_username))
             using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_userService.GetSessionId(_username)))
             {
-                SessionDbHelper.UpdateItemPlaceholderData(connection, remoteSyncableItemInfo, itemData);
+                var remoteKnowledge = SessionDbHelper.LoadRemoteKnowledge(connection);
+                ISyncableItemInfo localSyncableItemInfo = store.LocateCurrentItemInfo(remoteSyncableItemInfo);
+                SyncStatus status = SyncUtil.CalculateSyncStatus(remoteSyncableItemInfo, localSyncableItemInfo, remoteKnowledge);
+                SessionDbHelper.UpdateItemPlaceholderData(connection, changeNumber, status, remoteSyncableItemInfo, itemData);
             }
 
             var json = new JObject();

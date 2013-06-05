@@ -105,12 +105,7 @@ namespace SyncFoundation.Core
 
         public static JObject JsonItemFromSyncableItemInfo(ISyncableItemInfo syncItemInfo)
         {
-            var item = new JObject();
-            item.Add("itemType", syncItemInfo.ItemType);
-            item.Add("creationReplicaID", syncItemInfo.Created.ReplicaId);
-            item.Add("creationReplicaTickCount", syncItemInfo.Created.ReplicaTickCount);
-            item.Add("modificationReplicaID", syncItemInfo.Modified.ReplicaId);
-            item.Add("modificationReplicaTickCount", syncItemInfo.Modified.ReplicaTickCount);
+            var item = SyncableItemInfoToJson(syncItemInfo);
             item.Add("itemRefs", new JArray());
             return item;
         }
