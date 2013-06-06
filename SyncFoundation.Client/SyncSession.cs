@@ -382,9 +382,14 @@ namespace SyncFoundation.Client
 
             JObject response = await sendRequestAsync(new Uri(_remoteAddress, "putChanges"), request);
 
+            int maxBatchCount = 50;
+            int maxBatchSize = 1024 * 1024;
+
             long startTick = Environment.TickCount;
             int previousPercentComplete = 0;
             int i = 0;
+            JArray batchArray = new JArray();
+            int batchSize = 0;
             foreach (ISyncableItemInfo syncItemInfo in changedItemInfos)
             {
                 i++;
@@ -394,7 +399,25 @@ namespace SyncFoundation.Client
                     reportProgressAndCheckCacellation(new SyncProgress() { Message = String.Format("Pushing Item Changes {0}% complete ({1})", percentComplete, String.Format("Averaging {0}ms/item over {1} items", (Environment.TickCount - startTick) / i, i)) });
                 }
                 previousPercentComplete = percentComplete;
-                await pushItemData(i, syncItemInfo);
+
+                JObject singleItemRequest = new JObject();
+                singleItemRequest.Add("changeNumber", i);
+                JObject builder = SyncUtil.JsonItemFromSyncableItemInfo(syncItemInfo);
+                if (!syncItemInfo.Deleted)
+                    _store.BuildItemData(syncItemInfo, builder);
+                singleItemRequest.Add(new JProperty("item", builder));
+                batchSize += singleItemRequest.ToString().Length;
+                batchArray.Add(singleItemRequest);
+
+                if (i == totalChanges || (i % maxBatchCount) == 0 || batchSize > maxBatchSize)
+                {
+                    JObject batchRequest = new JObject();
+                    addCredentials(batchRequest);
+                    batchRequest.Add(new JProperty("batch", batchArray));
+                    JObject batchResponse = await sendRequestAsync(new Uri(_remoteAddress, "putItemDataBatch"), batchRequest);
+                    batchArray = new JArray();
+                    batchSize = 0;
+                }
             }
         }
 

@@ -254,5 +254,47 @@ namespace SyncFoundation.Server
             resp.Content = new StringContent(json.ToString(), Encoding.UTF8, "application/json");
             return resp;
         }
+
+        [HttpPost]
+        public HttpResponseMessage PutItemDataBatch(JObject request)
+        {
+            validateRequest(request);
+
+            var resp = Request.CreateResponse(HttpStatusCode.OK, string.Empty);
+            using (ISyncableStore store = _userService.GetSyncableStore(_username))
+            using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_userService.GetSessionId(_username)))
+            {
+                IDbCommand command = connection.CreateCommand();
+                command.CommandText = "BEGIN";
+                command.ExecuteNonQuery();
+                try
+                {
+                    JArray batch = (JArray)request["batch"];
+                    for (int i = 0; i < batch.Count; i++)
+                    {
+                        ISyncableItemInfo remoteSyncableItemInfo = SyncUtil.SyncableItemInfoFromJson(batch[i]["item"]);
+                        JObject itemData = new JObject();
+                        itemData.Add("item", batch[i]["item"]);
+                        int changeNumber = (int)batch[i]["changeNumber"];
+
+                        var remoteKnowledge = SessionDbHelper.LoadRemoteKnowledge(connection);
+                        ISyncableItemInfo localSyncableItemInfo = store.LocateCurrentItemInfo(remoteSyncableItemInfo);
+                        SyncStatus status = SyncUtil.CalculateSyncStatus(remoteSyncableItemInfo, localSyncableItemInfo, remoteKnowledge);
+                        SessionDbHelper.SaveItemData(connection, remoteSyncableItemInfo, status, itemData);
+                    }
+                    command.CommandText = "COMMIT";
+                    command.ExecuteNonQuery();
+                }
+                catch (Exception)
+                {
+                    command.CommandText = "ROLLBACK";
+                    command.ExecuteNonQuery();
+                }
+            }
+            var json = new JObject();
+            resp.Content = new StringContent(json.ToString(), Encoding.UTF8, "application/json");
+            return resp;
+        }
+
     }
 }
