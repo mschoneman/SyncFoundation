@@ -180,8 +180,12 @@ namespace BookSample.Data
 
                     command.CommandText = String.Format("CREATE TABLE People(PersonID INTEGER PRIMARY KEY AUTOINCREMENT, PersonName TEXT, {0});", itemIdFieldsAndForiegnKeysForCreate);
                     command.ExecuteNonQuery();
+                    command.CommandText = String.Format("CREATE INDEX PeopleMetadata on People (CreatedReplica, CreatedTickCount);");
+                    command.ExecuteNonQuery();
 
                     command.CommandText = String.Format("CREATE TABLE Books(BookID INTEGER PRIMARY KEY AUTOINCREMENT, BookTitle TEXT, {0});", itemIdFieldsAndForiegnKeysForCreate);
+                    command.ExecuteNonQuery();
+                    command.CommandText = String.Format("CREATE INDEX BookMetadata on Books (CreatedReplica, CreatedTickCount);");
                     command.ExecuteNonQuery();
 
                     command.CommandText = "CREATE TABLE BookAuthors(BookID INTEGER, PersonID INTEGER, AuthorPriority INTEGER, " +

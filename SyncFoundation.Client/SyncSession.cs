@@ -16,6 +16,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.IO;
+using System.IO.Compression;
 
 namespace SyncFoundation.Client
 {
@@ -57,20 +59,35 @@ namespace SyncFoundation.Client
                 _progressWatcher.Report(progress);
         }
 
+        private HttpClient _client;
+        private HttpClient client
+        {
+            get
+            {
+                if (_client == null)
+                {
+                    _client = new HttpClient(new HttpClientHandler() { AutomaticDecompression = DecompressionMethods.Deflate | DecompressionMethods.GZip });
+                    _client.Timeout = TimeSpan.FromMinutes(5);
+                }
+                return _client;
+            }
+        }
+
         private async Task<JObject> sendRequestAsync(Uri endpoint, JObject request)
         {
-            System.Diagnostics.Debug.WriteLine("\n\nREQUEST to: " + endpoint.ToString());
-            System.Diagnostics.Debug.WriteLine(request.ToString());
+            //System.Diagnostics.Debug.WriteLine("\n\nREQUEST to: " + endpoint.ToString());
+            //System.Diagnostics.Debug.WriteLine(request.ToString());
 
-            var client = new HttpClient();
             var content = new StringContent(request.ToString(),Encoding.UTF8,"application/json");
-            HttpResponseMessage responseMessage = await client.PostAsync(endpoint, content);
+            var compressedContent = new CompressedContent(content, "gzip");
+
+            HttpResponseMessage responseMessage = await client.PostAsync(endpoint, compressedContent);
             string responseString = await responseMessage.Content.ReadAsStringAsync();
 
             if (!responseMessage.IsSuccessStatusCode)
                 throw new Exception(String.Format("Remote call failed (HTTP Status Code {0}): {1}", responseMessage.StatusCode, responseString));
 
-            System.Diagnostics.Debug.WriteLine("RESPONSE:\n" + responseString);
+            //System.Diagnostics.Debug.WriteLine("RESPONSE:\n" + responseString);
             JObject response = JObject.Parse(responseString);
 
             if (response["errorCode"] != null)
@@ -359,22 +376,24 @@ namespace SyncFoundation.Client
             var localKnowledge = _store.GenerateLocalKnowledge();
             var changedItemInfos = _store.LocateChangedItems(_remoteKnowledge);
 
+            int totalChanges = changedItemInfos.Count();
             request.Add(new JProperty("knowledge", SyncUtil.KnowledgeToJson(localKnowledge)));
-            request.Add(new JProperty("changeCount", changedItemInfos.Count()));
+            request.Add(new JProperty("changeCount", totalChanges));
 
             JObject response = await sendRequestAsync(new Uri(_remoteAddress, "putChanges"), request);
 
-            await pushChangedItemsData(changedItemInfos);
-        }
-
-        private async Task pushChangedItemsData(IEnumerable<ISyncableItemInfo> changedItemInfos)
-        {
+            long startTick = Environment.TickCount;
+            int previousPercentComplete = 0;
             int i = 0;
-            int totalChanges = changedItemInfos.Count();
             foreach (ISyncableItemInfo syncItemInfo in changedItemInfos)
             {
                 i++;
-                reportProgressAndCheckCacellation(new SyncProgress() { Message = String.Format("Pushing Item Change {0} of {1}", i, totalChanges) });
+                int percentComplete = ((i * 100) / totalChanges);
+                if (percentComplete != previousPercentComplete)
+                {
+                    reportProgressAndCheckCacellation(new SyncProgress() { Message = String.Format("Pushing Item Changes {0}% complete ({1})", percentComplete, String.Format("Averaging {0}ms/item over {1} items", (Environment.TickCount - startTick) / i, i)) });
+                }
+                previousPercentComplete = percentComplete;
                 await pushItemData(i, syncItemInfo);
             }
         }
@@ -487,4 +506,69 @@ namespace SyncFoundation.Client
         }
 
     }
+
+    internal class CompressedContent : HttpContent
+    {
+        private HttpContent originalContent;
+        private string encodingType;
+
+        public CompressedContent(HttpContent content, string encodingType)
+        {
+            if (content == null)
+            {
+                throw new ArgumentNullException("content");
+            }
+
+            if (encodingType == null)
+            {
+                throw new ArgumentNullException("encodingType");
+            }
+
+            originalContent = content;
+            this.encodingType = encodingType.ToLowerInvariant();
+
+            if (this.encodingType != "gzip" && this.encodingType != "deflate")
+            {
+                throw new InvalidOperationException(string.Format("Encoding '{0}' is not supported. Only supports gzip or deflate encoding.", this.encodingType));
+            }
+
+            // copy the headers from the original content
+            foreach (KeyValuePair<string, IEnumerable<string>> header in originalContent.Headers)
+            {
+                this.Headers.TryAddWithoutValidation(header.Key, header.Value);
+            }
+
+            this.Headers.ContentEncoding.Add(encodingType);
+        }
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = -1;
+
+            return false;
+        }
+
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext context)
+        {
+            Stream compressedStream = null;
+
+            if (encodingType == "gzip")
+            {
+                compressedStream = new GZipStream(stream, CompressionMode.Compress, leaveOpen: true);
+            }
+            else if (encodingType == "deflate")
+            {
+                compressedStream = new DeflateStream(stream, CompressionMode.Compress, leaveOpen: true);
+            }
+
+            return originalContent.CopyToAsync(compressedStream).ContinueWith(tsk =>
+            {
+                if (compressedStream != null)
+                {
+                    compressedStream.Dispose();
+                }
+            });
+        }
+    }
+
 }

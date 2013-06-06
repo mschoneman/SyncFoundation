@@ -57,6 +57,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ApiError.cs" />
+    <Compile Include="CompressedRequestHandler.cs" />
+    <Compile Include="CompressedResponseHandler.cs" />
     <Compile Include="DbCommandExtensions.cs" />
     <Compile Include="IUserService.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

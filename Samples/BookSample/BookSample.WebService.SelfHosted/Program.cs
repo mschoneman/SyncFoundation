@@ -31,6 +31,10 @@ namespace BookSample.WebService.SelfHosted
                     action = "about"
                 }
             );
+
+            config.MessageHandlers.Add(new CompressedRequestHandler());
+            config.MessageHandlers.Add(new CompressedResponseHandler());
+
             using (HttpSelfHostServer server = new HttpSelfHostServer(config))
             {
                 server.OpenAsync().Wait();

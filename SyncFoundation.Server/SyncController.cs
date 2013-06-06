@@ -221,7 +221,7 @@ namespace SyncFoundation.Server
                 SessionDbHelper.SaveRemoteKnowledge(connection, remoteKnowledge);
 
                 int changeCount = (int)request["changeCount"];
-                SessionDbHelper.SaveItemPlaceHolders(connection, changeCount);
+                //SessionDbHelper.SaveItemPlaceHolders(connection, changeCount);
             }
 
             var json = new JObject();
@@ -247,7 +247,7 @@ namespace SyncFoundation.Server
                 var remoteKnowledge = SessionDbHelper.LoadRemoteKnowledge(connection);
                 ISyncableItemInfo localSyncableItemInfo = store.LocateCurrentItemInfo(remoteSyncableItemInfo);
                 SyncStatus status = SyncUtil.CalculateSyncStatus(remoteSyncableItemInfo, localSyncableItemInfo, remoteKnowledge);
-                SessionDbHelper.UpdateItemPlaceholderData(connection, changeNumber, status, remoteSyncableItemInfo, itemData);
+                SessionDbHelper.SaveItemData(connection, remoteSyncableItemInfo, status, itemData);
             }
 
             var json = new JObject();

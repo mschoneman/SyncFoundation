@@ -88,12 +88,17 @@ namespace BookSample.WpfApplication
             deleteButton.IsEnabled = bookListBox.SelectedItem != null;
         }
 
-        private void syncButton_Click(object sender, RoutedEventArgs e)
+        private async void syncButton_Click(object sender, RoutedEventArgs e)
         {
-            var session = new SyncSession(new BookRepositorySyncableStoreAdapter(_repos), new ClientSyncSessionDbConnectionProdivder(), new Uri("http://localhost:53831/"), "test@example.com", "monkey");
-            var progressWatcher = new Progress<SyncProgress>(reportProgress);
-            session.SyncWithRemoteAsync(progressWatcher, CancellationToken.None).Wait();
-            session.Close();
+            syncButton.IsEnabled = false;
+            using (var adapter = new BookRepositorySyncableStoreAdapter(_repos))
+            {
+                var session = new SyncSession(adapter, new ClientSyncSessionDbConnectionProdivder(), new Uri("http://localhost:18080/"), "test@example.com", "monkey");
+                var progressWatcher = new Progress<SyncProgress>(reportProgress);
+                await session.SyncWithRemoteAsync(progressWatcher, CancellationToken.None);
+                session.Close();
+            }
+            syncButton.IsEnabled = true;
         }
 
         private void reportProgress(SyncProgress obj)

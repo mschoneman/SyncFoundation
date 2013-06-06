@@ -204,22 +204,37 @@ namespace SyncFoundation.Core
             // loop through types and apply updates or inserts
             foreach (string itemType in store.GetItemTypes())
             {
+                System.Diagnostics.Debug.WriteLine("Updating itemType = " + itemType);
+
                 IDbCommand getUpdatedItemsCommand = connection.CreateCommand();
                 getUpdatedItemsCommand.CommandText = String.Format("SELECT SyncStatus, GlobalCreatedReplica, CreatedTickCount, GlobalModifiedReplica, ModifiedTickCount, ItemData  FROM SyncItems WHERE SyncStatus IN ({0},{1}) AND ItemType=@ItemType", (int)SyncStatus.Insert, (int)SyncStatus.Update);
                 getUpdatedItemsCommand.AddParameter("@ItemType", itemType);
 
+                long startTick = Environment.TickCount;
+                long itemCount = 0;
                 using (IDataReader reader = getUpdatedItemsCommand.ExecuteReader())
                 {
                     while (reader.Read())
                     {
+                        itemCount++;
                         IReplicaInfo createdReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Created");
                         IReplicaInfo modifiedReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Modified");
                         JObject itemData = JObject.Parse((string)reader["ItemData"]);
                         ISyncableItemInfo itemInfo = new SyncableItemInfo { ItemType = itemType, Created = createdReplicaInfo, Modified = modifiedReplicaInfo, Deleted = false };
                         updateItem(connection, store, itemInfo, itemData);
+
+                        if((itemCount % 500) == 0)
+                        {
+                            System.Diagnostics.Debug.WriteLine(String.Format("'{0}' is averaging {1}ms/item over {2} items", itemType, (Environment.TickCount - startTick) / itemCount, itemCount));
+                        }
+
                     }
                 }
-
+                long endTick = Environment.TickCount;
+                if(itemCount != 0)
+                    System.Diagnostics.Debug.WriteLine(String.Format("Updating {0} '{1}' items took {2}ms (avg {3}ms/item)", itemCount, itemType, endTick - startTick, (endTick - startTick) / itemCount));
+                else
+                    System.Diagnostics.Debug.WriteLine(String.Format("Updating zero '{0}' items took {1}ms",itemType, endTick - startTick));
             }
         }
 

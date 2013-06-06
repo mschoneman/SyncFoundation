@@ -82,8 +82,7 @@ namespace SyncFoundation.Core
             command.ExecuteNonQuery();
             for (int itemNumber = 1; itemNumber <= changeCount; itemNumber++)
             {
-                command.CommandText = "INSERT INTO SyncItems(RowID) VALUES(@RowID)";
-                command.AddParameter("@RowID", itemNumber);
+                command.CommandText = String.Format("INSERT INTO SyncItems(RowID) VALUES({0})", itemNumber);
                 command.ExecuteNonQuery();
             }
             command.CommandText = "COMMIT";
