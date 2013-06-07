@@ -37,8 +37,20 @@ namespace SyncFoundation.Client
         private CancellationToken _cancellationToken = CancellationToken.None;
         private bool _closed = false;
 
+        public int PushMaxBatchCount { get; set; }
+        public int PushMaxBatchSize { get; set; }
+
+        public int PullMaxBatchCount { get; set; }
+        public int PullMaxBatchSize { get; set; } 
+
         public SyncSession(ISyncableStore store, ISyncSessionDbConnectionProvider syncSessionDbConnectionProvider, Uri remoteAddress, string username, string password)
         {
+            PushMaxBatchCount = 500;
+            PushMaxBatchSize = 1024 * 1024;
+
+            PullMaxBatchCount = 5000;
+            PullMaxBatchSize = 1024 * 1024 * 10;
+
             _store = store;
             _syncSessionDbConnectionProvider = syncSessionDbConnectionProvider;
             _remoteAddress = remoteAddress;
@@ -196,29 +208,69 @@ namespace SyncFoundation.Client
 
             using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_localSessionId))
             {
-                JArray changes = (JArray)response["changes"];
-                for (int i = 0; i < changes.Count; i++)
+                IDbCommand command = connection.CreateCommand();
+                command.CommandText = "BEGIN";
+                command.ExecuteNonQuery();
+                SessionDbHelper.ClearSyncItems(connection);
+
+                long startTick = Environment.TickCount;
+                int previousPercentComplete = 0;
+                int totalChanges = (int)response["totalChanges"];
+                for (int i = 1; i <= totalChanges; )
                 {
-                    reportProgressAndCheckCacellation(new SyncProgress() { Message = String.Format("Pulling Item Change {0} of {1}", i + 1, changes.Count) });
-
-                    ISyncableItemInfo remoteSyncableItemInfo = SyncUtil.SyncableItemInfoFromJson(changes[i]);
-
-                    if (SyncUtil.KnowledgeContains(localKnowledge, remoteSyncableItemInfo.Modified))
+                    int percentComplete = ((i * 100) / totalChanges);
+                    if (percentComplete != previousPercentComplete)
                     {
-                        //LOG_DEBUG("Sync", "***** OBSOLETE CHANGE DETECTED - itemType:%d (cGlobalID=%s,cTick=%d mGlobalID=%s,mTick=%d)\r\n", itemType, globalCreationID, creationTickCount, globalModificationID, modificationTickCount);
-                        continue;
+                        reportProgressAndCheckCacellation(new SyncProgress() { Message = String.Format("Pulling Item Changes {0}% complete ({1})", percentComplete, String.Format("Averaging {0}ms/item over {1} items", (Environment.TickCount - startTick) / i, i)) });
                     }
+                    previousPercentComplete = percentComplete;
 
-                    ISyncableItemInfo localSyncableItemInfo = _store.LocateCurrentItemInfo(remoteSyncableItemInfo);
-                    SyncStatus status = SyncUtil.CalculateSyncStatus(remoteSyncableItemInfo, localSyncableItemInfo, _remoteKnowledge);
-                    await saveSyncData(connection, remoteSyncableItemInfo, status);
+                    i += await saveChangesBatch(connection, localKnowledge, i);
                 }
+                command.CommandText = "COMMIT";
+                command.ExecuteNonQuery();
 
                 List<SyncConflict> conflicts = new List<SyncConflict>();
                 conflicts.AddRange(checkForDuplicates(connection));
                 conflicts.AddRange(loadConflicts(connection));
                 return conflicts;
             }
+        }
+
+        private async Task<int> saveChangesBatch(IDbConnection connection, IEnumerable<IReplicaInfo> localKnowledge, int startItem)
+        {
+            JObject request = new JObject();
+            addCredentials(request);
+            request.Add("startItem", startItem);
+            request.Add("maxBatchCount", PullMaxBatchCount);
+            request.Add("maxBatchSize", PullMaxBatchSize);
+
+            JObject response = await sendRequestAsync(new Uri(_remoteAddress, "GetItemDataBatch"), request);
+            JArray batch = (JArray)response["batch"];
+
+            for (int i = 0; i < batch.Count; i++)
+            {
+                ISyncableItemInfo remoteSyncableItemInfo = SyncUtil.SyncableItemInfoFromJson(batch[i]["item"]);
+                JObject itemData = new JObject();
+                itemData.Add("item", batch[i]["item"]);
+
+                SyncStatus status = SyncStatus.MayBeNeeded;
+                if (!SyncUtil.KnowledgeContains(localKnowledge, remoteSyncableItemInfo.Modified))
+                {
+                    ISyncableItemInfo localSyncableItemInfo = _store.LocateCurrentItemInfo(remoteSyncableItemInfo);
+                    status = SyncUtil.CalculateSyncStatus(remoteSyncableItemInfo, localSyncableItemInfo, _remoteKnowledge);
+                }
+                SessionDbHelper.SaveItemData(connection, remoteSyncableItemInfo, status, itemData);
+                JArray itemRefs = (JArray)itemData["item"]["itemRefs"];
+                foreach (var item in itemRefs)
+                {
+                    ISyncableItemInfo itemRefInfo = SyncUtil.SyncableItemInfoFromJson(item);
+                    ISyncableItemInfo localItemRefInfo = _store.LocateCurrentItemInfo(itemRefInfo);
+                    if (localItemRefInfo != null && localItemRefInfo.Deleted)
+                        await saveSyncData(connection, itemRefInfo, SyncStatus.MayBeNeeded);
+                }
+            }
+            return batch.Count;
         }
 
         private IEnumerable<SyncConflict> loadConflicts(IDbConnection connection)
@@ -382,8 +434,8 @@ namespace SyncFoundation.Client
 
             JObject response = await sendRequestAsync(new Uri(_remoteAddress, "putChanges"), request);
 
-            int maxBatchCount = 50;
-            int maxBatchSize = 1024 * 1024;
+            int maxBatchCount = PushMaxBatchCount;
+            int maxBatchSize = PushMaxBatchSize;
 
             long startTick = Environment.TickCount;
             int previousPercentComplete = 0;
@@ -409,7 +461,7 @@ namespace SyncFoundation.Client
                 batchSize += singleItemRequest.ToString().Length;
                 batchArray.Add(singleItemRequest);
 
-                if (i == totalChanges || (i % maxBatchCount) == 0 || batchSize > maxBatchSize)
+                if (i == totalChanges || (i % maxBatchCount) == 0 || batchSize >= maxBatchSize)
                 {
                     JObject batchRequest = new JObject();
                     addCredentials(batchRequest);
@@ -419,6 +471,21 @@ namespace SyncFoundation.Client
                     batchSize = 0;
                 }
             }
+
+            await applyChanges(totalChanges);
+        }
+
+        private async Task applyChanges(int totalChanges)
+        {
+            JObject request = new JObject();
+            addCredentials(request);
+
+            var localKnowledge = _store.GenerateLocalKnowledge();
+            var changedItemInfos = _store.LocateChangedItems(_remoteKnowledge);
+
+            request.Add(new JProperty("changeCount", totalChanges));
+
+            JObject response = await sendRequestAsync(new Uri(_remoteAddress, "applyChanges"), request);
         }
 
         private async Task pushItemData(int changeNumber, ISyncableItemInfo syncItemInfo)

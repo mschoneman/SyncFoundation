@@ -194,5 +194,43 @@ namespace SyncFoundation.Core
                 }
             }
         }
+
+        public static void SaveChangedItems(IDbConnection connection, IEnumerable<ISyncableItemInfo> changedItems)
+        {
+            IDbCommand command = connection.CreateCommand();
+            command.CommandText = "BEGIN";
+            command.ExecuteNonQuery();
+
+            command.CommandText = "DELETE FROM SyncItems";
+            command.ExecuteNonQuery();
+
+            int itemNumber = 0;
+            foreach (var remoteSyncableItemInfo in changedItems)
+            {
+                itemNumber++;
+                IDbCommand commandInsert = connection.CreateCommand();
+                commandInsert.CommandText = "INSERT INTO SyncItems(ItemID, SyncStatus, ItemType, GlobalCreatedReplica, CreatedTickCount, GlobalModifiedReplica, ModifiedTickCount) VALUES(@RowID, @SyncStatus,@ItemType,@CreatedReplica,@CreatedTick,@ModifiedReplica,@ModifiedTick)";
+                commandInsert.AddParameter("@RowID", itemNumber);
+                commandInsert.AddParameter("@SyncStatus", remoteSyncableItemInfo.Deleted ? SyncStatus.Delete : SyncStatus.Update);
+                commandInsert.AddParameter("@ItemType", remoteSyncableItemInfo.ItemType);
+                commandInsert.AddParameter("@CreatedReplica", remoteSyncableItemInfo.Created.ReplicaId);
+                commandInsert.AddParameter("@CreatedTick", remoteSyncableItemInfo.Created.ReplicaTickCount);
+                commandInsert.AddParameter("@ModifiedReplica", remoteSyncableItemInfo.Modified.ReplicaId);
+                commandInsert.AddParameter("@ModifiedTick", remoteSyncableItemInfo.Modified.ReplicaTickCount);
+                commandInsert.ExecuteNonQuery();
+            }
+            command.CommandText = "COMMIT";
+            command.ExecuteNonQuery();
+        }
+
+        public static ISyncableItemInfo SyncableItemInfoFromDataReader(IDataReader reader)
+        {
+            IReplicaInfo createdReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Created");
+            IReplicaInfo modifiedReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Modified");
+            string itemType = reader["ItemType"].ToString();
+            SyncStatus status = (SyncStatus)reader["SyncStatus"];
+            ISyncableItemInfo itemInfo = new SyncableItemInfo { ItemType = itemType, Created = createdReplicaInfo, Modified = modifiedReplicaInfo, Deleted = (status == SyncStatus.Delete) };
+            return itemInfo;
+        }
     }
 }

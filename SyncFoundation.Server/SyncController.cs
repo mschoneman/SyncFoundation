@@ -133,6 +133,9 @@ namespace SyncFoundation.Server
             var resp = Request.CreateResponse(HttpStatusCode.OK, string.Empty);
             var json = new JObject();
             json.Add(new JProperty("sessionID", sessionId));
+            json.Add("maxBatchCount", 50);
+            json.Add("maxBatchSize", 1024*1024);
+            json.Add("useGzip", true);
             resp.Content = new StringContent(json.ToString(), Encoding.UTF8, "application/json");
             return resp;
         }
@@ -142,24 +145,32 @@ namespace SyncFoundation.Server
         {
             validateRequest(request);
 
-            try
-            {
-                using (ISyncableStore store = _userService.GetSyncableStore(_username))
-                using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_userService.GetSessionId(_username)))
-                {
-                    SyncUtil.ApplyChangesAndUpdateKnowledge(connection, store, SessionDbHelper.LoadRemoteKnowledge(connection));
-                }
-            }
-            finally
-            {
-                _syncSessionDbConnectionProvider.SessionEnd(_userService.GetSessionId(_username));
-                _userService.SetSessionId(_username, null);
-            }
+            _syncSessionDbConnectionProvider.SessionEnd(_userService.GetSessionId(_username));
+            _userService.SetSessionId(_username, null);
+
             var resp = Request.CreateResponse(HttpStatusCode.OK, string.Empty);
             var json = new JObject();
             resp.Content = new StringContent(json.ToString(), Encoding.UTF8, "application/json");
             return resp;
         }
+
+        [HttpPost]
+        public HttpResponseMessage ApplyChanges(JObject request)
+        {
+            validateRequest(request);
+
+            using (ISyncableStore store = _userService.GetSyncableStore(_username))
+            using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_userService.GetSessionId(_username)))
+            {
+                SyncUtil.ApplyChangesAndUpdateKnowledge(connection, store, SessionDbHelper.LoadRemoteKnowledge(connection));
+            }
+
+            var resp = Request.CreateResponse(HttpStatusCode.OK, string.Empty);
+            var json = new JObject();
+            resp.Content = new StringContent(json.ToString(), Encoding.UTF8, "application/json");
+            return resp;
+        }
+
 
         [HttpPost]
         public HttpResponseMessage GetChanges(JObject request)
@@ -172,9 +183,12 @@ namespace SyncFoundation.Server
 
             var json = new JObject();
             using (ISyncableStore store = _userService.GetSyncableStore(_username))
+            using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_userService.GetSessionId(_username)))
             {
                 json.Add(new JProperty("knowledge", SyncUtil.KnowledgeToJson(store.GenerateLocalKnowledge())));
-                json.Add(new JProperty("changes", SyncUtil.JsonItemArrayFromSyncableItemInfoEnumberable(store.LocateChangedItems(remoteKnowledge))));
+                var changedItems = store.LocateChangedItems(remoteKnowledge);
+                SessionDbHelper.SaveChangedItems(connection, changedItems);
+                json.Add(new JProperty("totalChanges", changedItems.Count()));
             }
 
             resp.Content = new StringContent(json.ToString(), Encoding.UTF8, "application/json");
@@ -205,6 +219,52 @@ namespace SyncFoundation.Server
 
 
         [HttpPost]
+        public HttpResponseMessage GetItemDataBatch(JObject request)
+        {
+            validateRequest(request);
+
+            var resp = Request.CreateResponse(HttpStatusCode.OK, string.Empty);
+
+            int startItem = (int)request["startItem"];
+            int maxBatchCount = (int)request["maxBatchCount"];
+            int maxBatchSize = (int)request["maxBatchSize"]; ;
+
+            JArray batchArray = new JArray();
+
+            using (ISyncableStore store = _userService.GetSyncableStore(_username))
+            using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_userService.GetSessionId(_username)))
+            {
+
+                IDbCommand getChangedItemsCommand = connection.CreateCommand();
+                getChangedItemsCommand.CommandText = String.Format("SELECT ItemID, SyncStatus, ItemType, GlobalCreatedReplica, CreatedTickCount, GlobalModifiedReplica, ModifiedTickCount FROM SyncItems WHERE ItemID >= {0}", startItem);
+                using (IDataReader reader = getChangedItemsCommand.ExecuteReader())
+                {
+                    int batchSize = 0;
+                    while (reader.Read())
+                    {
+                        ISyncableItemInfo requestedItemInfo = SessionDbHelper.SyncableItemInfoFromDataReader(reader);
+
+                        var singleItem = new JObject();
+                        JObject builder = SyncUtil.JsonItemFromSyncableItemInfo(requestedItemInfo);
+                        if(!requestedItemInfo.Deleted)
+                            store.BuildItemData(requestedItemInfo, builder);
+                        singleItem.Add(new JProperty("item", builder));
+
+                        batchSize += singleItem.ToString().Length;
+                        batchArray.Add(singleItem);
+
+                        if (batchArray.Count >= maxBatchCount || batchSize >= maxBatchSize)
+                            break;
+                    }
+                }
+            }
+            var json = new JObject();
+            json.Add("batch", batchArray);
+            resp.Content = new StringContent(json.ToString(), Encoding.UTF8, "application/json");
+            return resp;
+        }
+
+        [HttpPost]
         public HttpResponseMessage PutChanges(JObject request)
         {
             validateRequest(request);
@@ -222,32 +282,6 @@ namespace SyncFoundation.Server
 
                 int changeCount = (int)request["changeCount"];
                 //SessionDbHelper.SaveItemPlaceHolders(connection, changeCount);
-            }
-
-            var json = new JObject();
-            resp.Content = new StringContent(json.ToString(), Encoding.UTF8, "application/json");
-            return resp;
-        }
-
-        [HttpPost]
-        public HttpResponseMessage PutItemData(JObject request)
-        {
-            validateRequest(request);
-
-            var resp = Request.CreateResponse(HttpStatusCode.OK, string.Empty);
-
-            ISyncableItemInfo remoteSyncableItemInfo = SyncUtil.SyncableItemInfoFromJson(request["item"]);
-            JObject itemData = new JObject();
-            itemData.Add("item", request["item"]);
-            int changeNumber = (int)request["changeNumber"];
-
-            using (ISyncableStore store = _userService.GetSyncableStore(_username))
-            using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_userService.GetSessionId(_username)))
-            {
-                var remoteKnowledge = SessionDbHelper.LoadRemoteKnowledge(connection);
-                ISyncableItemInfo localSyncableItemInfo = store.LocateCurrentItemInfo(remoteSyncableItemInfo);
-                SyncStatus status = SyncUtil.CalculateSyncStatus(remoteSyncableItemInfo, localSyncableItemInfo, remoteKnowledge);
-                SessionDbHelper.SaveItemData(connection, remoteSyncableItemInfo, status, itemData);
             }
 
             var json = new JObject();
