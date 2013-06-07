@@ -214,10 +214,12 @@ namespace SyncFoundation.Client
                 SessionDbHelper.ClearSyncItems(connection);
 
                 long startTick = Environment.TickCount;
-                int previousPercentComplete = 0;
+                int previousPercentComplete = -1;
                 int totalChanges = (int)response["totalChanges"];
                 for (int i = 1; i <= totalChanges; )
                 {
+                    i += await saveChangesBatch(connection, localKnowledge, i);
+
                     int percentComplete = ((i * 100) / totalChanges);
                     if (percentComplete != previousPercentComplete)
                     {
@@ -225,7 +227,6 @@ namespace SyncFoundation.Client
                     }
                     previousPercentComplete = percentComplete;
 
-                    i += await saveChangesBatch(connection, localKnowledge, i);
                 }
                 command.CommandText = "COMMIT";
                 command.ExecuteNonQuery();
@@ -411,7 +412,7 @@ namespace SyncFoundation.Client
             if (_remoteKnowledge == null)
                 return;
 
-            reportProgressAndCheckCacellation(new SyncProgress() { Message = "Committing Changes" });
+            reportProgressAndCheckCacellation(new SyncProgress() { Message = "Applying Changes Locally" });
             using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_localSessionId))
             {
                 SyncUtil.ApplyChangesAndUpdateKnowledge(connection, _store, _remoteKnowledge);
@@ -438,7 +439,7 @@ namespace SyncFoundation.Client
             int maxBatchSize = PushMaxBatchSize;
 
             long startTick = Environment.TickCount;
-            int previousPercentComplete = 0;
+            int previousPercentComplete = -1;
             int i = 0;
             JArray batchArray = new JArray();
             int batchSize = 0;
@@ -477,6 +478,8 @@ namespace SyncFoundation.Client
 
         private async Task applyChanges(int totalChanges)
         {
+            reportProgressAndCheckCacellation(new SyncProgress() { Message = "Applying Changes Remotely" });
+
             JObject request = new JObject();
             addCredentials(request);
 

@@ -236,7 +236,7 @@ namespace SyncFoundation.Server
             {
 
                 IDbCommand getChangedItemsCommand = connection.CreateCommand();
-                getChangedItemsCommand.CommandText = String.Format("SELECT ItemID, SyncStatus, ItemType, GlobalCreatedReplica, CreatedTickCount, GlobalModifiedReplica, ModifiedTickCount FROM SyncItems WHERE ItemID >= {0}", startItem);
+                getChangedItemsCommand.CommandText = String.Format("SELECT ItemID, SyncStatus, ItemType, GlobalCreatedReplica, CreatedTickCount, GlobalModifiedReplica, ModifiedTickCount FROM SyncItems WHERE ItemID >= {0} ORDER BY ItemID", startItem);
                 using (IDataReader reader = getChangedItemsCommand.ExecuteReader())
                 {
                     int batchSize = 0;
