@@ -104,6 +104,9 @@
     <Compile Include="..\SyncFoundation.Core\DbCommandExtensions.cs">
       <Link>DbCommandExtensions.cs</Link>
     </Compile>
+    <Compile Include="..\SyncFoundation.Core\DirectSyncTransport.cs">
+      <Link>DirectSyncTransport.cs</Link>
+    </Compile>
     <Compile Include="..\SyncFoundation.Core\DuplicateStatus.cs">
       <Link>DuplicateStatus.cs</Link>
     </Compile>
@@ -122,6 +125,9 @@
     <Compile Include="..\SyncFoundation.Core\Interfaces\ISyncSessionDbConnectionProvider.cs">
       <Link>Interfaces\ISyncSessionDbConnectionProvider.cs</Link>
     </Compile>
+    <Compile Include="..\SyncFoundation.Core\Interfaces\ISyncTransport.cs">
+      <Link>Interfaces\ISyncTransport.cs</Link>
+    </Compile>
     <Compile Include="..\SyncFoundation.Core\ReplicaInfo.cs">
       <Link>ReplicaInfo.cs</Link>
     </Compile>
@@ -130,6 +136,9 @@
     </Compile>
     <Compile Include="..\SyncFoundation.Core\SyncableItemInfo.cs">
       <Link>SyncableItemInfo.cs</Link>
+    </Compile>
+    <Compile Include="..\SyncFoundation.Core\SyncServerSession.cs">
+      <Link>SyncServerSession.cs</Link>
     </Compile>
     <Compile Include="..\SyncFoundation.Core\SyncStatus.cs">
       <Link>SyncStatus.cs</Link>

@@ -61,6 +61,7 @@
   <ItemGroup>
     <Compile Include="BookSampleSyncTest.cs" />
     <Compile Include="ClientSyncSessionDbConnectionProdivder.cs" />
+    <Compile Include="BookSampleDirectSyncTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

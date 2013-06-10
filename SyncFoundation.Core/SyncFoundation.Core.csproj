@@ -48,6 +48,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="DirectSyncTransport.cs" />
     <Compile Include="DuplicateStatus.cs" />
     <Compile Include="DbCommandExtensions.cs" />
     <Compile Include="Interfaces\ISyncableItemDataBuilder.cs" />
@@ -55,10 +56,12 @@
     <Compile Include="Interfaces\IReplicaInfo.cs" />
     <Compile Include="Interfaces\ISyncableStore.cs" />
     <Compile Include="Interfaces\ISyncSessionDbConnectionProvider.cs" />
+    <Compile Include="Interfaces\ISyncTransport.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ReplicaInfo.cs" />
     <Compile Include="SessionDbHelper.cs" />
     <Compile Include="SyncableItemInfo.cs" />
+    <Compile Include="SyncServerSession.cs" />
     <Compile Include="SyncStatus.cs" />
     <Compile Include="SyncUtil.cs" />
   </ItemGroup>

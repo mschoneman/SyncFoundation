@@ -60,6 +60,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="DbCommandExtensions.cs" />
+    <Compile Include="HttpSyncTransport.cs" />
     <Compile Include="SyncConflict.cs" />
     <Compile Include="SyncProgress.cs" />
     <Compile Include="SyncSession.cs" />

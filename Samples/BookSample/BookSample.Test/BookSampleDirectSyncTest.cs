@@ -9,19 +9,15 @@ using BookSample.WpfApplication;
 using BookSample.Data.Interfaces;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Data;
+using Community.CsharpSqlite.SQLiteClient;
+using SyncFoundation.Core;
 
 namespace BookSample.Test
 {
     [TestClass]
-    public class BookSampleSyncTest
+    public class BookSampleDirectSyncTest
     {
-        //private const string remoteHost = "http://localhost:53831/";
-        private const string remoteHost = "http://localhost:18080/";
-        private void resetCloud()
-        {
-            File.Delete(@"..\..\..\BookSample.WebService\App_Data\test@example.com.User.sqlite");
-        }
-
         private BookRepositorySyncableStoreAdapter GetAdapter(string path)
         {
             File.Delete(path);
@@ -33,7 +29,6 @@ namespace BookSample.Test
         [TestMethod]
         public void TestEmptyReplicaAreDifferent()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -46,31 +41,31 @@ namespace BookSample.Test
             }
         }
 
+        private IDbConnection GetServerConnection()
+        {
+            string cs = string.Format("Version=3,busy_timeout=500,uri=file:ServerSession.sqlite");
+            IDbConnection connection = new SqliteConnection();
+            connection.ConnectionString = cs;
+            connection.Open();
+            return connection;
+        }
+
         private void syncAdatapersAssertNoConflicts(BookRepositorySyncableStoreAdapter adapter1, BookRepositorySyncableStoreAdapter adapter2)
         {
             // send any changes in 1 to cloud 
-            var session1 = new SyncSession(adapter1, new ClientSyncSessionDbConnectionProdivder(), new HttpSyncTransport(new Uri(remoteHost), "test@example.com", "monkey"));
-            var conflicts1 = session1.SyncWithRemoteAsync().Result;
-            Assert.AreEqual(0, conflicts1.Count());
-            session1.Close();
-
-            // get changes from 1 and send any changes from 2
-            var session2 = new SyncSession(adapter2, new ClientSyncSessionDbConnectionProdivder(), new HttpSyncTransport(new Uri(remoteHost), "test@example.com", "monkey"));
-            var conflicts2 = session2.SyncWithRemoteAsync().Result;
-            Assert.AreEqual(0, conflicts2.Count());
-            session2.Close();
-
-            // get any changes from 2 back into 1
-            var session3 = new SyncSession(adapter1, new ClientSyncSessionDbConnectionProdivder(), new HttpSyncTransport(new Uri(remoteHost), "test@example.com", "monkey"));
-            var conflicts3 = session3.SyncWithRemoteAsync().Result;
-            Assert.AreEqual(0, conflicts3.Count());
-            session3.Close();
+            using (var connection = GetServerConnection())
+            {
+                var session1 = new SyncSession(adapter1, new ClientSyncSessionDbConnectionProdivder(), new DirectSyncTransport(adapter2, connection));
+                var conflicts1 = session1.SyncWithRemoteAsync().Result;
+                Assert.AreEqual(0, conflicts1.Count());
+                session1.Close();
+            }
+            File.Delete("ServerSession.sqlite");
         }
 
         [TestMethod]
-        public void TestSyncEmptyReplica()
+        public void TestDirectSyncEmptyReplica()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -88,9 +83,8 @@ namespace BookSample.Test
         }
 
         [TestMethod]
-        public void TestSyncPersonFrom1To2()
+        public void TestDirectSyncPersonFrom1To2()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -121,9 +115,8 @@ namespace BookSample.Test
         }
 
         [TestMethod]
-        public void TestSyncPersonFrom2To1()
+        public void TestDirectSyncPersonFrom2To1()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -147,9 +140,8 @@ namespace BookSample.Test
         }
 
         [TestMethod]
-        public void TestSyncDuplicatePerson()
+        public void TestDirectSyncDuplicatePerson()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -176,9 +168,8 @@ namespace BookSample.Test
         }
 
         [TestMethod]
-        public void TestSyncPersonFrom1To2Delete1To2()
+        public void TestDirectSyncPersonFrom1To2Delete1To2()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -214,9 +205,8 @@ namespace BookSample.Test
 
 
         [TestMethod]
-        public void TestSyncPersonFrom1To2Delete2To1()
+        public void TestDirectSyncPersonFrom1To2Delete2To1()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -251,9 +241,8 @@ namespace BookSample.Test
         }
 
         [TestMethod]
-        public void TestSyncBookFrom1To2()
+        public void TestDirectSyncBookFrom1To2()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -284,9 +273,8 @@ namespace BookSample.Test
         }
 
         [TestMethod]
-        public void TestSyncBookFrom2To1()
+        public void TestDirectSyncBookFrom2To1()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -310,9 +298,8 @@ namespace BookSample.Test
         }
 
         [TestMethod]
-        public void TestSyncDuplicateBook()
+        public void TestDirectSyncDuplicateBook()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -339,9 +326,8 @@ namespace BookSample.Test
         }
 
         [TestMethod]
-        public void TestSyncDupBookDupPeoplePlusNonDups()
+        public void TestDirectSyncDupBookDupPeoplePlusNonDups()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -372,9 +358,8 @@ namespace BookSample.Test
         }
 
         [TestMethod]
-        public void TestSyncBookWithAuthorNoDups()
+        public void TestDirectSyncBookWithAuthorNoDups()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -413,9 +398,8 @@ namespace BookSample.Test
 
 
         [TestMethod]
-        public void TestSyncBookWithAuthorDups()
+        public void TestDirectSyncBookWithAuthorDups()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -455,9 +439,8 @@ namespace BookSample.Test
         }
 
         [TestMethod]
-        public void TestSyncBookWithAuthorDups2()
+        public void TestDirectSyncBookWithAuthorDups2()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -498,9 +481,8 @@ namespace BookSample.Test
         }
 
         [TestMethod]
-        public void TestSyncBookWithAuthorDups3()
+        public void TestDirectSyncBookWithAuthorDups3()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -541,9 +523,8 @@ namespace BookSample.Test
         }
 
         [TestMethod]
-        public void TestSyncBookWithAuthorDups4()
+        public void TestDirectSyncBookWithAuthorDups4()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -587,9 +568,8 @@ namespace BookSample.Test
 
 
         [TestMethod]
-        public void TestSyncBookWithAuthorDups5()
+        public void TestDirectSyncBookWithAuthorDups5()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -636,9 +616,8 @@ namespace BookSample.Test
 
 
         [TestMethod]
-        public void TestSyncBookModification()
+        public void TestDirectSyncBookModification()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -677,9 +656,8 @@ namespace BookSample.Test
         }
 
         [TestMethod]
-        public void TestSyncBookAddAuthorModification()
+        public void TestDirectSyncBookAddAuthorModification()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -723,9 +701,8 @@ namespace BookSample.Test
         }
 
         [TestMethod]
-        public void TestSyncBookAddDupAuthorModification()
+        public void TestDirectSyncBookAddDupAuthorModification()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -770,9 +747,8 @@ namespace BookSample.Test
         }
 
         [TestMethod]
-        public void TestSyncBookRemoveAuthorModification()
+        public void TestDirectSyncBookRemoveAuthorModification()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -816,9 +792,8 @@ namespace BookSample.Test
         }
 
         [TestMethod]
-        public void TestSyncBookRemoveAndDeleteAuthorModification()
+        public void TestDirectSyncBookRemoveAndDeleteAuthorModification()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -863,9 +838,8 @@ namespace BookSample.Test
 
 
         [TestMethod]
-        public void TestSyncPersonModification()
+        public void TestDirectSyncPersonModification()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -904,175 +878,8 @@ namespace BookSample.Test
         }
 
         [TestMethod]
-        public async Task TestSyncPersonConflictResolveLocal()
+        public void TestDirectSyncBookRemoveAndAddAuthorModification()
         {
-            resetCloud();
-            string file1 = "TEST1.sqlite";
-            string file2 = "TEST2.sqlite";
-
-            using (var adapter1 = GetAdapter(file1))
-            using (var adapter2 = GetAdapter(file2))
-            {
-                addPerson(adapter1, "Person 1");
-
-                var state1 = adapter1.GetDbState();
-                var state2 = adapter2.GetDbState();
-                syncAdatapersAssertNoConflicts(adapter1, adapter2);
-                var state3 = adapter1.GetDbState();
-                var state4 = adapter2.GetDbState();
-
-                IPerson writeablePerson = adapter1.BookRepository.GetWriteablePerson(adapter1.BookRepository.AllPeople[0]);
-                writeablePerson.Name = "Modified 1";
-                adapter1.BookRepository.SavePerson(writeablePerson);
-
-                writeablePerson = adapter2.BookRepository.GetWriteablePerson(adapter2.BookRepository.AllPeople[0]);
-                writeablePerson.Name = "Modified 2";
-                adapter2.BookRepository.SavePerson(writeablePerson);
-
-
-                // send any changes in 1 to cloud 
-                var session1 = new SyncSession(adapter1, new ClientSyncSessionDbConnectionProdivder(), new HttpSyncTransport(new Uri(remoteHost), "test@example.com", "monkey"));
-                session1.SyncWithRemoteAsync().Wait();
-                var conflicts1 = await session1.SyncWithRemoteAsync();
-                Assert.AreEqual(0, conflicts1.Count());
-                if (conflicts1.Any())
-                {
-                    foreach (var conflict in conflicts1)
-                        session1.ResolveConflictLocalWins(conflict);
-                    conflicts1 = await session1.SyncWithRemoteAsync();
-                }
-                session1.Close();
-
-                // get changes from 1 and send any changes from 2
-                var session2 = new SyncSession(adapter2, new ClientSyncSessionDbConnectionProdivder(), new HttpSyncTransport(new Uri(remoteHost), "test@example.com", "monkey"));
-                var conflicts2 = await session2.SyncWithRemoteAsync();
-                Assert.AreEqual(1, conflicts2.Count());
-                if (conflicts2.Any())
-                {
-                    foreach (var conflict in conflicts2)
-                        session2.ResolveConflictLocalWins(conflict);
-                    conflicts2 = await session2.SyncWithRemoteAsync();
-                }
-                session2.Close();
-
-                // get any changes from 2 back into 1
-                var session3 = new SyncSession(adapter1, new ClientSyncSessionDbConnectionProdivder(), new HttpSyncTransport(new Uri(remoteHost), "test@example.com", "monkey"));
-                var conflicts3 = await session3.SyncWithRemoteAsync();
-                Assert.AreEqual(0, conflicts3.Count());
-                if (conflicts2.Any())
-                {
-                    foreach (var conflict in conflicts3)
-                        session3.ResolveConflictLocalWins(conflict);
-                    conflicts3 = await session3.SyncWithRemoteAsync();
-                }
-                session3.Close();
-
-
-                var state7 = adapter1.GetDbState();
-                var state8 = adapter2.GetDbState();
-
-                Assert.AreEqual(0, conflicts1.Count());
-                Assert.AreEqual(0, conflicts2.Count());
-                Assert.AreEqual(0, conflicts3.Count());
-
-                Assert.AreEqual(1, adapter1.BookRepository.AllPeople.Count);
-                Assert.AreEqual(1, adapter2.BookRepository.AllPeople.Count);
-                Assert.AreEqual("Modified 2", adapter1.BookRepository.AllPeople[0].Name);
-                Assert.AreEqual("Modified 2", adapter2.BookRepository.AllPeople[0].Name);
-
-                Assert.AreNotEqual(state1, state2);
-                Assert.AreEqual(state3, state4);
-                Assert.AreEqual(state7, state8);
-            }
-        }
-
-        [TestMethod]
-        public async Task TestSyncPersonConflictResolveRemote()
-        {
-            resetCloud();
-            string file1 = "TEST1.sqlite";
-            string file2 = "TEST2.sqlite";
-
-            using (var adapter1 = GetAdapter(file1))
-            using (var adapter2 = GetAdapter(file2))
-            {
-                addPerson(adapter1, "Person 1");
-
-                var state1 = adapter1.GetDbState();
-                var state2 = adapter2.GetDbState();
-                syncAdatapersAssertNoConflicts(adapter1, adapter2);
-                var state3 = adapter1.GetDbState();
-                var state4 = adapter2.GetDbState();
-
-                IPerson writeablePerson = adapter1.BookRepository.GetWriteablePerson(adapter1.BookRepository.AllPeople[0]);
-                writeablePerson.Name = "Modified 1";
-                adapter1.BookRepository.SavePerson(writeablePerson);
-
-                writeablePerson = adapter2.BookRepository.GetWriteablePerson(adapter2.BookRepository.AllPeople[0]);
-                writeablePerson.Name = "Modified 2";
-                adapter2.BookRepository.SavePerson(writeablePerson);
-
-
-                // send any changes in 1 to cloud 
-                var session1 = new SyncSession(adapter1, new ClientSyncSessionDbConnectionProdivder(), new HttpSyncTransport(new Uri(remoteHost), "test@example.com", "monkey"));
-                session1.SyncWithRemoteAsync().Wait();
-                var conflicts1 = await session1.SyncWithRemoteAsync();
-                Assert.AreEqual(0, conflicts1.Count());
-                if (conflicts1.Any())
-                {
-                    foreach (var conflict in conflicts1)
-                        session1.ResolveConflictRemoteWins(conflict);
-                    conflicts1 = await session1.SyncWithRemoteAsync();
-                }
-                session1.Close();
-
-                // get changes from 1 and send any changes from 2
-                var session2 = new SyncSession(adapter2, new ClientSyncSessionDbConnectionProdivder(), new HttpSyncTransport(new Uri(remoteHost), "test@example.com", "monkey"));
-                var conflicts2 = await session2.SyncWithRemoteAsync();
-                Assert.AreEqual(1, conflicts2.Count());
-                if (conflicts2.Any())
-                {
-                    foreach (var conflict in conflicts2)
-                        session2.ResolveConflictRemoteWins(conflict);
-                    conflicts2 = await session2.SyncWithRemoteAsync();
-                }
-                session2.Close();
-
-                // get any changes from 2 back into 1
-                var session3 = new SyncSession(adapter1, new ClientSyncSessionDbConnectionProdivder(), new HttpSyncTransport(new Uri(remoteHost), "test@example.com", "monkey"));
-                var conflicts3 = await session3.SyncWithRemoteAsync();
-                Assert.AreEqual(0, conflicts3.Count());
-                if (conflicts2.Any())
-                {
-                    foreach (var conflict in conflicts3)
-                        session3.ResolveConflictRemoteWins(conflict);
-                    conflicts3 = await session3.SyncWithRemoteAsync();
-                }
-                session3.Close();
-
-
-                var state7 = adapter1.GetDbState();
-                var state8 = adapter2.GetDbState();
-
-                Assert.AreEqual(0, conflicts1.Count());
-                Assert.AreEqual(0, conflicts2.Count());
-                Assert.AreEqual(0, conflicts3.Count());
-
-                Assert.AreEqual(1, adapter1.BookRepository.AllPeople.Count);
-                Assert.AreEqual(1, adapter2.BookRepository.AllPeople.Count);
-                Assert.AreEqual("Modified 1", adapter1.BookRepository.AllPeople[0].Name);
-                Assert.AreEqual("Modified 1", adapter2.BookRepository.AllPeople[0].Name);
-
-                Assert.AreNotEqual(state1, state2);
-                Assert.AreEqual(state3, state4);
-                Assert.AreEqual(state7, state8);
-            }
-        }
-
-        [TestMethod]
-        public void TestSyncBookRemoveAndAddAuthorModification()
-        {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -1112,9 +919,8 @@ namespace BookSample.Test
         }
 
         [TestMethod]
-        public void TestSyncBookAddAndRemoveAuthorModification()
+        public void TestDirectSyncBookAddAndRemoveAuthorModification()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -1155,9 +961,8 @@ namespace BookSample.Test
 
 
         [TestMethod]
-        public void TestSyncBookAdd100BooksAndPeople()
+        public void TestDirectSyncBookAdd100BooksAndPeople()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 
@@ -1189,9 +994,8 @@ namespace BookSample.Test
         }
 
         [TestMethod]
-        public void TestSyncBookAdd1000BooksAndPeople()
+        public void TestDirectSyncBookAdd1000BooksAndPeople()
         {
-            resetCloud();
             string file1 = "TEST1.sqlite";
             string file2 = "TEST2.sqlite";
 

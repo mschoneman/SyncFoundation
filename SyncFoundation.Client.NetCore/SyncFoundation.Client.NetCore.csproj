@@ -111,6 +111,9 @@
     <Compile Include="..\SyncFoundation.Client\DbCommandExtensions.cs">
       <Link>DbCommandExtensions.cs</Link>
     </Compile>
+    <Compile Include="..\SyncFoundation.Client\HttpSyncTransport.cs">
+      <Link>HttpSyncTransport.cs</Link>
+    </Compile>
     <Compile Include="..\SyncFoundation.Client\SyncConflict.cs">
       <Link>SyncConflict.cs</Link>
     </Compile>

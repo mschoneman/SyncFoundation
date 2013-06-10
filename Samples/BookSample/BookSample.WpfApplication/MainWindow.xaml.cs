@@ -93,7 +93,7 @@ namespace BookSample.WpfApplication
             syncButton.IsEnabled = false;
             using (var adapter = new BookRepositorySyncableStoreAdapter(_repos))
             {
-                var session = new SyncSession(adapter, new ClientSyncSessionDbConnectionProdivder(), new Uri("http://localhost:18080/"), "test@example.com", "monkey");
+                var session = new SyncSession(adapter, new ClientSyncSessionDbConnectionProdivder(), new HttpSyncTransport(new Uri("http://localhost:18080/"), "test@example.com", "monkey"));
                 var progressWatcher = new Progress<SyncProgress>(reportProgress);
                 await session.SyncWithRemoteAsync(progressWatcher, CancellationToken.None);
                 session.Close();

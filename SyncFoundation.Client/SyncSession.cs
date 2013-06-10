@@ -6,13 +6,6 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Net;
-using System.Net.Http;
-#if NETFX_CORE
-using Windows.Security.Cryptography;
-using Windows.Security.Cryptography.Core;
-#else
-using System.Security.Cryptography;
-#endif
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,9 +17,7 @@ namespace SyncFoundation.Client
     public class SyncSession
     {
         private readonly ISyncableStore _store;
-        private readonly Uri _remoteAddress;
-        private readonly string _username;
-        private readonly string _password;
+        private readonly ISyncTransport _transport;
         private readonly ISyncSessionDbConnectionProvider _syncSessionDbConnectionProvider;
         private readonly string _localSessionId;
 
@@ -43,7 +34,7 @@ namespace SyncFoundation.Client
         public int PullMaxBatchCount { get; set; }
         public int PullMaxBatchSize { get; set; } 
 
-        public SyncSession(ISyncableStore store, ISyncSessionDbConnectionProvider syncSessionDbConnectionProvider, Uri remoteAddress, string username, string password)
+        public SyncSession(ISyncableStore store, ISyncSessionDbConnectionProvider syncSessionDbConnectionProvider, ISyncTransport transport)
         {
             PushMaxBatchCount = 500;
             PushMaxBatchSize = 1024 * 1024;
@@ -53,9 +44,7 @@ namespace SyncFoundation.Client
 
             _store = store;
             _syncSessionDbConnectionProvider = syncSessionDbConnectionProvider;
-            _remoteAddress = remoteAddress;
-            _username = username;
-            _password = password;
+            _transport = transport;
             _localSessionId = Guid.NewGuid().ToString();
             _syncSessionDbConnectionProvider.SessionStart(_localSessionId);
             using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_localSessionId))
@@ -71,115 +60,17 @@ namespace SyncFoundation.Client
                 _progressWatcher.Report(progress);
         }
 
-        private HttpClient _client;
-        private HttpClient client
-        {
-            get
-            {
-                if (_client == null)
-                {
-                    _client = new HttpClient(new HttpClientHandler() { AutomaticDecompression = DecompressionMethods.Deflate | DecompressionMethods.GZip });
-                    _client.Timeout = TimeSpan.FromMinutes(5);
-                }
-                return _client;
-            }
-        }
-
-        private async Task<JObject> sendRequestAsync(Uri endpoint, JObject request)
-        {
-            //System.Diagnostics.Debug.WriteLine("\n\nREQUEST to: " + endpoint.ToString());
-            //System.Diagnostics.Debug.WriteLine(request.ToString());
-
-            var content = new StringContent(request.ToString(),Encoding.UTF8,"application/json");
-            var compressedContent = new CompressedContent(content, "gzip");
-
-            HttpResponseMessage responseMessage = await client.PostAsync(endpoint, compressedContent);
-            string responseString = await responseMessage.Content.ReadAsStringAsync();
-
-            if (!responseMessage.IsSuccessStatusCode)
-                throw new Exception(String.Format("Remote call failed (HTTP Status Code {0}): {1}", responseMessage.StatusCode, responseString));
-
-            //System.Diagnostics.Debug.WriteLine("RESPONSE:\n" + responseString);
-            JObject response = JObject.Parse(responseString);
-
-            if (response["errorCode"] != null)
-            {
-                throw new Exception(String.Format("Remote call failed with error code {0} - {1}",response["errorCode"], response["errorMessage"]));
-            }
-
-            return response;
-        }
-
-        private byte[] generateNonce()
-        {
-#if NETFX_CORE
-            byte[] nonce;
-            CryptographicBuffer.CopyToByteArray(CryptographicBuffer.GenerateRandom(16), out nonce);
-            return nonce;
-#else
-            byte[] nonce = new byte[16];
-            RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
-            rng.GetBytes(nonce);
-            return nonce;
-#endif
-        }
-
-        private byte[] computeHash(byte[] source)
-        {
-#if NETFX_CORE
-            var bufSource = CryptographicBuffer.CreateFromByteArray(source);
-            // Create a HashAlgorithmProvider object.
-            var hashProvider = HashAlgorithmProvider.OpenAlgorithm(HashAlgorithmNames.Sha1);
-
-            // Hash the message.
-            var buffHash = hashProvider.HashData(bufSource);
-            byte[] digest;
-            CryptographicBuffer.CopyToByteArray(buffHash, out digest);
-            return digest;
-#else
-            return new SHA1Managed().ComputeHash(source);
-#endif
-        }
-
-        private void addCredentials(JObject request)
-        {
-            string now = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
-            byte[] nonce = generateNonce();
-            byte[] created = Encoding.UTF8.GetBytes(now);
-            byte[] password = Encoding.UTF8.GetBytes(_password);
-            byte[] digestSource = new byte[nonce.Length + created.Length + password.Length];
-
-            for (int i = 0; i < nonce.Length; i++)
-                digestSource[i] = nonce[i];
-            for (int i = 0; i < created.Length; i++)
-                digestSource[nonce.Length + i] = created[i];
-            for (int i = 0; i < password.Length; i++)
-                digestSource[created.Length + nonce.Length + i] = password[i];
-
-
-            byte[] digestBytes = computeHash(digestSource);
-            string digest = Convert.ToBase64String(digestBytes);
-
-            request.Add("username", _username);
-            request.Add("nonce", Convert.ToBase64String(nonce));
-            request.Add("created", now);
-            request.Add("digest", digest);
-            if(_remoteSessionId != null)
-                request.Add("sessionID", _remoteSessionId);
-        }
 
         private async Task openSession()
         {
             reportProgressAndCheckCacellation(new SyncProgress() { Message = "Opening Session" });
             JObject request = new JObject();
-            addCredentials(request);
-
             JArray types = new JArray();
             foreach (var type in _store.GetItemTypes())
                 types.Add(type);
             request.Add("itemTypes", types);
 
-            JObject response = await sendRequestAsync(new Uri(_remoteAddress, "beginSession"), request);
+            JObject response = await _transport.TransportAsync(SyncEndpoint.BeginSession, request);
             _remoteSessionId = (string)response["sessionID"];
         }
 
@@ -187,8 +78,8 @@ namespace SyncFoundation.Client
         {
             reportProgressAndCheckCacellation(new SyncProgress() { Message = "Closing Session" });
             JObject request = new JObject();
-            addCredentials(request);
-            JObject response = await sendRequestAsync(new Uri(_remoteAddress, "endSession"), request);
+            request.Add("sessionID", _remoteSessionId);
+            JObject response = await _transport.TransportAsync(SyncEndpoint.EndSession, request);
             _remoteSessionId = null;
             _syncSessionDbConnectionProvider.SessionEnd(_remoteSessionId);
         }
@@ -198,12 +89,12 @@ namespace SyncFoundation.Client
             reportProgressAndCheckCacellation(new SyncProgress() { Message = "Pulling Changes" });
 
             JObject request = new JObject();
-            addCredentials(request);
+            request.Add("sessionID", _remoteSessionId);
 
             var localKnowledge = _store.GenerateLocalKnowledge();
             request.Add(new JProperty("knowledge", SyncUtil.KnowledgeToJson(localKnowledge)));
 
-            JObject response = await sendRequestAsync(new Uri(_remoteAddress, "getChanges"), request);
+            JObject response = await _transport.TransportAsync(SyncEndpoint.GetChanges, request);
             _remoteKnowledge = SyncUtil.KnowledgeFromJson(response["knowledge"]);
 
             using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_localSessionId))
@@ -241,12 +132,12 @@ namespace SyncFoundation.Client
         private async Task<int> saveChangesBatch(IDbConnection connection, IEnumerable<IReplicaInfo> localKnowledge, int startItem)
         {
             JObject request = new JObject();
-            addCredentials(request);
+            request.Add("sessionID", _remoteSessionId);
             request.Add("startItem", startItem);
             request.Add("maxBatchCount", PullMaxBatchCount);
             request.Add("maxBatchSize", PullMaxBatchSize);
 
-            JObject response = await sendRequestAsync(new Uri(_remoteAddress, "GetItemDataBatch"), request);
+            JObject response = await _transport.TransportAsync(SyncEndpoint.GetItemDataBatch, request);
             JArray batch = (JArray)response["batch"];
 
             for (int i = 0; i < batch.Count; i++)
@@ -389,9 +280,9 @@ namespace SyncFoundation.Client
             if (!remoteSyncableItemInfo.Deleted)
             {
                 JObject request = new JObject();
-                addCredentials(request);
+                request.Add("sessionID", _remoteSessionId);
                 request.Add(new JProperty("item", SyncUtil.SyncableItemInfoToJson(remoteSyncableItemInfo)));
-                JObject response = await sendRequestAsync(new Uri(_remoteAddress, "getItemData"), request);
+                JObject response = await _transport.TransportAsync(SyncEndpoint.GetItemData, request);
                 data = response;
             }
 
@@ -424,7 +315,7 @@ namespace SyncFoundation.Client
             reportProgressAndCheckCacellation(new SyncProgress() { Message = "Pushing Changes" });
 
             JObject request = new JObject();
-            addCredentials(request);
+            request.Add("sessionID", _remoteSessionId);
 
             var localKnowledge = _store.GenerateLocalKnowledge();
             var changedItemInfos = _store.LocateChangedItems(_remoteKnowledge);
@@ -433,7 +324,7 @@ namespace SyncFoundation.Client
             request.Add(new JProperty("knowledge", SyncUtil.KnowledgeToJson(localKnowledge)));
             request.Add(new JProperty("changeCount", totalChanges));
 
-            JObject response = await sendRequestAsync(new Uri(_remoteAddress, "putChanges"), request);
+            JObject response = await _transport.TransportAsync(SyncEndpoint.PutChanges, request);
 
             int maxBatchCount = PushMaxBatchCount;
             int maxBatchSize = PushMaxBatchSize;
@@ -465,9 +356,9 @@ namespace SyncFoundation.Client
                 if (i == totalChanges || (i % maxBatchCount) == 0 || batchSize >= maxBatchSize)
                 {
                     JObject batchRequest = new JObject();
-                    addCredentials(batchRequest);
+                    batchRequest.Add("sessionID", _remoteSessionId);
                     batchRequest.Add(new JProperty("batch", batchArray));
-                    JObject batchResponse = await sendRequestAsync(new Uri(_remoteAddress, "putItemDataBatch"), batchRequest);
+                    JObject batchResponse = await _transport.TransportAsync(SyncEndpoint.PutItemDataBatch, batchRequest);
                     batchArray = new JArray();
                     batchSize = 0;
                 }
@@ -481,26 +372,14 @@ namespace SyncFoundation.Client
             reportProgressAndCheckCacellation(new SyncProgress() { Message = "Applying Changes Remotely" });
 
             JObject request = new JObject();
-            addCredentials(request);
+            request.Add("sessionID", _remoteSessionId);
 
             var localKnowledge = _store.GenerateLocalKnowledge();
             var changedItemInfos = _store.LocateChangedItems(_remoteKnowledge);
 
             request.Add(new JProperty("changeCount", totalChanges));
 
-            JObject response = await sendRequestAsync(new Uri(_remoteAddress, "applyChanges"), request);
-        }
-
-        private async Task pushItemData(int changeNumber, ISyncableItemInfo syncItemInfo)
-        {
-            JObject request = new JObject();
-            addCredentials(request);
-            request.Add("changeNumber", changeNumber);
-            JObject builder = SyncUtil.JsonItemFromSyncableItemInfo(syncItemInfo);
-            if(!syncItemInfo.Deleted)
-                _store.BuildItemData(syncItemInfo, builder);
-            request.Add(new JProperty("item", builder));
-            JObject response = await sendRequestAsync(new Uri(_remoteAddress, "putItemData"), request);
+            JObject response = await _transport.TransportAsync(SyncEndpoint.ApplyChanges, request);
         }
 
         private async Task<IEnumerable<SyncConflict>> sync()
@@ -599,69 +478,4 @@ namespace SyncFoundation.Client
         }
 
     }
-
-    internal class CompressedContent : HttpContent
-    {
-        private HttpContent originalContent;
-        private string encodingType;
-
-        public CompressedContent(HttpContent content, string encodingType)
-        {
-            if (content == null)
-            {
-                throw new ArgumentNullException("content");
-            }
-
-            if (encodingType == null)
-            {
-                throw new ArgumentNullException("encodingType");
-            }
-
-            originalContent = content;
-            this.encodingType = encodingType.ToLowerInvariant();
-
-            if (this.encodingType != "gzip" && this.encodingType != "deflate")
-            {
-                throw new InvalidOperationException(string.Format("Encoding '{0}' is not supported. Only supports gzip or deflate encoding.", this.encodingType));
-            }
-
-            // copy the headers from the original content
-            foreach (KeyValuePair<string, IEnumerable<string>> header in originalContent.Headers)
-            {
-                this.Headers.TryAddWithoutValidation(header.Key, header.Value);
-            }
-
-            this.Headers.ContentEncoding.Add(encodingType);
-        }
-
-        protected override bool TryComputeLength(out long length)
-        {
-            length = -1;
-
-            return false;
-        }
-
-        protected override Task SerializeToStreamAsync(Stream stream, TransportContext context)
-        {
-            Stream compressedStream = null;
-
-            if (encodingType == "gzip")
-            {
-                compressedStream = new GZipStream(stream, CompressionMode.Compress, leaveOpen: true);
-            }
-            else if (encodingType == "deflate")
-            {
-                compressedStream = new DeflateStream(stream, CompressionMode.Compress, leaveOpen: true);
-            }
-
-            return originalContent.CopyToAsync(compressedStream).ContinueWith(tsk =>
-            {
-                if (compressedStream != null)
-                {
-                    compressedStream.Dispose();
-                }
-            });
-        }
-    }
-
 }
