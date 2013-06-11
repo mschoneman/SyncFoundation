@@ -63,7 +63,7 @@ namespace SyncFoundation.Client
 
         private async Task openSession()
         {
-            reportProgressAndCheckCacellation(new SyncProgress() { Message = "Opening Session" });
+            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.Connecting, PercentComplete = 0, Message = "Opening Session" });
             JObject request = new JObject();
             JArray types = new JArray();
             foreach (var type in _store.GetItemTypes())
@@ -72,21 +72,23 @@ namespace SyncFoundation.Client
 
             JObject response = await _transport.TransportAsync(SyncEndpoint.BeginSession, request);
             _remoteSessionId = (string)response["sessionID"];
+            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.Connecting, PercentComplete = 100, Message = "Session Established" });
         }
 
         private async Task closeSession()
         {
-            reportProgressAndCheckCacellation(new SyncProgress() { Message = "Closing Session" });
+            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.Disconnecting, PercentComplete = 0, Message = "Closing Session" });
             JObject request = new JObject();
             request.Add("sessionID", _remoteSessionId);
             JObject response = await _transport.TransportAsync(SyncEndpoint.EndSession, request);
             _remoteSessionId = null;
             _syncSessionDbConnectionProvider.SessionEnd(_remoteSessionId);
+            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.Disconnecting, PercentComplete = 100, Message = "Session Closed" });
         }
 
         private async Task<IEnumerable<SyncConflict>> pullChanges()
         {
-            reportProgressAndCheckCacellation(new SyncProgress() { Message = "Pulling Changes" });
+            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.FindingRemoteChanges, PercentComplete = 0, Message = "Looking for remote changes" });
 
             JObject request = new JObject();
             request.Add("sessionID", _remoteSessionId);
@@ -96,7 +98,11 @@ namespace SyncFoundation.Client
 
             JObject response = await _transport.TransportAsync(SyncEndpoint.GetChanges, request);
             _remoteKnowledge = SyncUtil.KnowledgeFromJson(response["knowledge"]);
+            int totalChanges = (int)response["totalChanges"];
 
+            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.FindingRemoteChanges, PercentComplete = 100, Message = String.Format("Found {0} remote changes", totalChanges) });
+
+            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.DownloadingRemoteChanges, PercentComplete = 0, Message = String.Format("Downloading {0} remote changes", totalChanges) });
             using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_localSessionId))
             {
                 IDbCommand command = connection.CreateCommand();
@@ -106,7 +112,6 @@ namespace SyncFoundation.Client
 
                 long startTick = Environment.TickCount;
                 int previousPercentComplete = -1;
-                int totalChanges = (int)response["totalChanges"];
                 for (int i = 1; i <= totalChanges; )
                 {
                     i += await saveChangesBatch(connection, localKnowledge, i);
@@ -114,17 +119,20 @@ namespace SyncFoundation.Client
                     int percentComplete = ((i * 100) / totalChanges);
                     if (percentComplete != previousPercentComplete)
                     {
-                        reportProgressAndCheckCacellation(new SyncProgress() { Message = String.Format("Pulling Item Changes {0}% complete ({1})", percentComplete, String.Format("Averaging {0}ms/item over {1} items", (Environment.TickCount - startTick) / i, i)) });
+                        reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.DownloadingRemoteChanges, PercentComplete = percentComplete, Message = String.Format("Downloading remote changes, {0}% complete ({1})", percentComplete, String.Format("Averaging {0}ms/item over {1} items", (Environment.TickCount - startTick) / i, i)) });
                     }
                     previousPercentComplete = percentComplete;
 
                 }
                 command.CommandText = "COMMIT";
                 command.ExecuteNonQuery();
+                reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.DownloadingRemoteChanges, PercentComplete = 100, Message = String.Format("Downloaded all {0} remote changes", totalChanges) });
 
+                reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.CheckingForConflicts, PercentComplete = 0, Message = "Looking for conflicts"});
                 List<SyncConflict> conflicts = new List<SyncConflict>();
                 conflicts.AddRange(checkForDuplicates(connection));
                 conflicts.AddRange(loadConflicts(connection));
+                reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.CheckingForConflicts, PercentComplete = 100, Message = String.Format("Found {0} conflicts", conflicts.Count) });
                 return conflicts;
             }
         }
@@ -303,16 +311,17 @@ namespace SyncFoundation.Client
             if (_remoteKnowledge == null)
                 return;
 
-            reportProgressAndCheckCacellation(new SyncProgress() { Message = "Applying Changes Locally" });
+            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.ApplyingChangesLocally, PercentComplete = 0, Message = "Applying changes locally" });
             using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_localSessionId))
             {
                 SyncUtil.ApplyChangesAndUpdateKnowledge(connection, _store, _remoteKnowledge);
             }
+            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.ApplyingChangesLocally, PercentComplete = 100, Message = "Applied all changes locally" });
         }
 
         private async Task pushChanges()
         {
-            reportProgressAndCheckCacellation(new SyncProgress() { Message = "Pushing Changes" });
+            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.FindingLocalChanges, PercentComplete = 0, Message = "Finding local changes" });
 
             JObject request = new JObject();
             request.Add("sessionID", _remoteSessionId);
@@ -326,6 +335,9 @@ namespace SyncFoundation.Client
 
             JObject response = await _transport.TransportAsync(SyncEndpoint.PutChanges, request);
 
+            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.FindingLocalChanges, PercentComplete = 100, Message = String.Format("Found {0} local changes", totalChanges) });
+
+            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.UploadingLocalChanges, PercentComplete = 0, Message = String.Format("Uploading {0} local changes", totalChanges) });
             int maxBatchCount = PushMaxBatchCount;
             int maxBatchSize = PushMaxBatchSize;
 
@@ -340,7 +352,7 @@ namespace SyncFoundation.Client
                 int percentComplete = ((i * 100) / totalChanges);
                 if (percentComplete != previousPercentComplete)
                 {
-                    reportProgressAndCheckCacellation(new SyncProgress() { Message = String.Format("Pushing Item Changes {0}% complete ({1})", percentComplete, String.Format("Averaging {0}ms/item over {1} items", (Environment.TickCount - startTick) / i, i)) });
+                    reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.UploadingLocalChanges, PercentComplete = 100, Message = String.Format("Uploading local changes, {0}% complete ({1})", percentComplete, String.Format("Averaging {0}ms/item over {1} items", (Environment.TickCount - startTick) / i, i)) });
                 }
                 previousPercentComplete = percentComplete;
 
@@ -363,13 +375,14 @@ namespace SyncFoundation.Client
                     batchSize = 0;
                 }
             }
+            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.UploadingLocalChanges, PercentComplete = 100, Message = String.Format("Uploaded {0} local changes", totalChanges) });
 
             await applyChanges(totalChanges);
         }
 
         private async Task applyChanges(int totalChanges)
         {
-            reportProgressAndCheckCacellation(new SyncProgress() { Message = "Applying Changes Remotely" });
+            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.ApplyingChangesRemotely, PercentComplete = 0, Message = String.Format("Applying changes remotely", totalChanges) });
 
             JObject request = new JObject();
             request.Add("sessionID", _remoteSessionId);
@@ -380,6 +393,8 @@ namespace SyncFoundation.Client
             request.Add(new JProperty("changeCount", totalChanges));
 
             JObject response = await _transport.TransportAsync(SyncEndpoint.ApplyChanges, request);
+
+            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.ApplyingChangesRemotely, PercentComplete = 100, Message = String.Format("Applied changes remotely", totalChanges) });
         }
 
         private async Task<IEnumerable<SyncConflict>> sync()
