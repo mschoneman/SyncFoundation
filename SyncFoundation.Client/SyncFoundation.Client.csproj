@@ -59,7 +59,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="DbCommandExtensions.cs" />
+    <Compile Include="DbExtensions.cs" />
     <Compile Include="HttpSyncTransport.cs" />
     <Compile Include="SyncConflict.cs" />
     <Compile Include="SyncProgress.cs" />

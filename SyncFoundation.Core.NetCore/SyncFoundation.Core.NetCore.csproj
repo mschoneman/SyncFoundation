@@ -101,8 +101,8 @@
     <Prefer32Bit>true</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="..\SyncFoundation.Core\DbCommandExtensions.cs">
-      <Link>DbCommandExtensions.cs</Link>
+    <Compile Include="..\SyncFoundation.Core\DbExtensions.cs">
+      <Link>DbExtensions.cs</Link>
     </Compile>
     <Compile Include="..\SyncFoundation.Core\DirectSyncTransport.cs">
       <Link>DirectSyncTransport.cs</Link>

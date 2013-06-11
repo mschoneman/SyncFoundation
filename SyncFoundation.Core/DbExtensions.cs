@@ -1,13 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Data;
 
 namespace SyncFoundation.Core
 {
-    public static class DbCommandExtensions
+    public static class DbExtensions
     {
         public static void AddParameter(this IDbCommand command, string name, object value)
         {
@@ -15,6 +10,13 @@ namespace SyncFoundation.Core
             param.ParameterName = name;
             param.Value = value;
             command.Parameters.Add(param);
+        }
+
+        public static int ExecuteNonQuery(this IDbConnection connection, string commandText)
+        {
+            IDbCommand command = connection.CreateCommand();
+            command.CommandText = commandText;
+            return command.ExecuteNonQuery();
         }
     }
 }

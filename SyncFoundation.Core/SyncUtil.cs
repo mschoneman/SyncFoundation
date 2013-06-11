@@ -4,21 +4,21 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SyncFoundation.Core
 {
-    static public class SyncUtil
+    public static class SyncUtil
     {
         public static JArray KnowledgeToJson(IEnumerable<IReplicaInfo> knowledge)
         {
             var knowledgeJson = new JArray();
             foreach (IReplicaInfo reposInfo in knowledge)
             {
-                var item = new JObject();
-                item.Add("replicaID", reposInfo.ReplicaId);
-                item.Add("replicaTickCount", reposInfo.ReplicaTickCount);
+                var item = new JObject
+                    {
+                        {"replicaID", reposInfo.ReplicaId},
+                        {"replicaTickCount", reposInfo.ReplicaTickCount}
+                    };
                 knowledgeJson.Add(item);
             }
             return knowledgeJson;
@@ -26,56 +26,53 @@ namespace SyncFoundation.Core
 
         public static IEnumerable<ReplicaInfo> KnowledgeFromJson(JToken knowledgeJson)
         {
-            List<ReplicaInfo> remoteKnowledge = new List<ReplicaInfo>();
-            foreach (var item in knowledgeJson)
-            {
-                string id = (string)item["replicaID"];
-                long tick = (long)item["replicaTickCount"];
-                remoteKnowledge.Add(new ReplicaInfo { ReplicaId = id, ReplicaTickCount = tick });
-            }
-            return remoteKnowledge;
+            return (from item in knowledgeJson
+                    let id = (string) item["replicaID"]
+                    let tick = (long) item["replicaTickCount"]
+                    select new ReplicaInfo {ReplicaId = id, ReplicaTickCount = tick}).ToList();
         }
 
         public static bool KnowledgeContains(IEnumerable<IReplicaInfo> knowledge, IReplicaInfo replicaInfo)
         {
-            foreach (IReplicaInfo reposInfo in knowledge)
-            {
-                if (reposInfo.ReplicaId == replicaInfo.ReplicaId)
-                    return reposInfo.ReplicaTickCount >= replicaInfo.ReplicaTickCount;
-            }
-            return false;
+            return (from reposInfo in knowledge
+                    where reposInfo.ReplicaId == replicaInfo.ReplicaId
+                    select reposInfo.ReplicaTickCount >= replicaInfo.ReplicaTickCount).FirstOrDefault();
         }
 
         public static ISyncableItemInfo SyncableItemInfoFromJson(JToken jToken)
         {
-            string itemType = (string)jToken["itemType"];
+            var itemType = (string) jToken["itemType"];
 
-            string globalCreationId = (string)jToken["creationReplicaID"];
-            long creationTickCount = (long)jToken["creationReplicaTickCount"];
-            ReplicaInfo created = new ReplicaInfo { ReplicaId = globalCreationId, ReplicaTickCount = creationTickCount };
+            var globalCreationId = (string) jToken["creationReplicaID"];
+            var creationTickCount = (long) jToken["creationReplicaTickCount"];
+            var created = new ReplicaInfo {ReplicaId = globalCreationId, ReplicaTickCount = creationTickCount};
 
-            string globalModificationId = (string)jToken["modificationReplicaID"];
-            long modificationTickCount = (long)jToken["modificationReplicaTickCount"];
-            ReplicaInfo modified = new ReplicaInfo { ReplicaId = globalModificationId, ReplicaTickCount = modificationTickCount };
+            var globalModificationId = (string) jToken["modificationReplicaID"];
+            var modificationTickCount = (long) jToken["modificationReplicaTickCount"];
+            var modified = new ReplicaInfo {ReplicaId = globalModificationId, ReplicaTickCount = modificationTickCount};
 
-            bool deleted = (jToken["deleted"] == null) ? false : (bool)jToken["deleted"];
+            var deleted = (jToken["deleted"] != null) && (bool) jToken["deleted"];
 
-            return new SyncableItemInfo { ItemType = itemType, Created = created, Modified = modified, Deleted = deleted };
+            return new SyncableItemInfo {ItemType = itemType, Created = created, Modified = modified, Deleted = deleted};
         }
 
         public static JObject SyncableItemInfoToJson(ISyncableItemInfo syncItemInfo)
         {
-            var item = new JObject();
-            item.Add("itemType", syncItemInfo.ItemType);
-            item.Add("creationReplicaID", syncItemInfo.Created.ReplicaId);
-            item.Add("creationReplicaTickCount", syncItemInfo.Created.ReplicaTickCount);
-            item.Add("modificationReplicaID", syncItemInfo.Modified.ReplicaId);
-            item.Add("modificationReplicaTickCount", syncItemInfo.Modified.ReplicaTickCount);
-            item.Add("deleted", syncItemInfo.Deleted);
+            var item = new JObject
+                {
+                    {"itemType", syncItemInfo.ItemType},
+                    {"creationReplicaID", syncItemInfo.Created.ReplicaId},
+                    {"creationReplicaTickCount", syncItemInfo.Created.ReplicaTickCount},
+                    {"modificationReplicaID", syncItemInfo.Modified.ReplicaId},
+                    {"modificationReplicaTickCount", syncItemInfo.Modified.ReplicaTickCount},
+                    {"deleted", syncItemInfo.Deleted}
+                };
             return item;
         }
 
-        public static SyncStatus CalculateSyncStatus(ISyncableItemInfo remoteSyncableItemInfo, ISyncableItemInfo localSyncableItemInfo, IEnumerable<IReplicaInfo> remoteKnowledge)
+        public static SyncStatus CalculateSyncStatus(ISyncableItemInfo remoteSyncableItemInfo,
+                                                     ISyncableItemInfo localSyncableItemInfo,
+                                                     IEnumerable<IReplicaInfo> remoteKnowledge)
         {
             if (localSyncableItemInfo == null) // We have no knowledge of the remote item
             {
@@ -87,7 +84,7 @@ namespace SyncFoundation.Core
             if (localSyncableItemInfo.Deleted && remoteSyncableItemInfo.Deleted)
                 return SyncStatus.DeleteNonExisting;
 
-            if (SyncUtil.KnowledgeContains(remoteKnowledge, localSyncableItemInfo.Modified))
+            if (KnowledgeContains(remoteKnowledge, localSyncableItemInfo.Modified))
             {
                 if (remoteSyncableItemInfo.Deleted)
                     return SyncStatus.Delete;
@@ -97,7 +94,7 @@ namespace SyncFoundation.Core
             }
 
             if (localSyncableItemInfo.Deleted)
-                return SyncStatus.DeleteConflict; 
+                return SyncStatus.DeleteConflict;
             if (remoteSyncableItemInfo.Deleted)
                 return SyncStatus.DeleteConflict;
             return SyncStatus.UpdateConflict;
@@ -110,12 +107,13 @@ namespace SyncFoundation.Core
             return item;
         }
 
-        public static JArray JsonItemArrayFromSyncableItemInfoEnumberable(IEnumerable<ISyncableItemInfo> syncItemInfoEnumerable)
+        public static JArray JsonItemArrayFromSyncableItemInfoEnumberable(
+            IEnumerable<ISyncableItemInfo> syncItemInfoEnumerable)
         {
             var items = new JArray();
             foreach (ISyncableItemInfo syncItemInfo in syncItemInfoEnumerable)
             {
-                items.Add(SyncUtil.SyncableItemInfoToJson(syncItemInfo));
+                items.Add(SyncableItemInfoToJson(syncItemInfo));
             }
             return items;
         }
@@ -123,21 +121,23 @@ namespace SyncFoundation.Core
 
         private static JObject JsonItemRefFromSyncableItemInfo(ISyncableItemInfo syncItemInfo)
         {
-            var item = new JObject();
-            item.Add("itemType", syncItemInfo.ItemType);
-            item.Add("creationReplicaID", syncItemInfo.Created.ReplicaId);
-            item.Add("creationReplicaTickCount", syncItemInfo.Created.ReplicaTickCount);
-            item.Add("modificationReplicaID", syncItemInfo.Modified.ReplicaId);
-            item.Add("modificationReplicaTickCount", syncItemInfo.Modified.ReplicaTickCount);
+            var item = new JObject
+                {
+                    {"itemType", syncItemInfo.ItemType},
+                    {"creationReplicaID", syncItemInfo.Created.ReplicaId},
+                    {"creationReplicaTickCount", syncItemInfo.Created.ReplicaTickCount},
+                    {"modificationReplicaID", syncItemInfo.Modified.ReplicaId},
+                    {"modificationReplicaTickCount", syncItemInfo.Modified.ReplicaTickCount}
+                };
             return item;
         }
 
         public static int AddJsonItemRef(JObject json, ISyncableItemInfo item)
         {
-            JArray itemRefs = (JArray)json["itemRefs"];
+            var itemRefs = (JArray) json["itemRefs"];
             for (int i = 0; i < itemRefs.Count; i++)
             {
-                ISyncableItemInfo test = SyncUtil.SyncableItemInfoFromJson(itemRefs[i]);
+                var test = SyncableItemInfoFromJson(itemRefs[i]);
                 if (test.ItemType == item.ItemType &&
                     test.Created.ReplicaId == item.Created.ReplicaId &&
                     test.Created.ReplicaTickCount == item.Created.ReplicaTickCount &&
@@ -151,16 +151,17 @@ namespace SyncFoundation.Core
             return itemRefs.Count - 1;
         }
 
-        public static void ApplyChangesAndUpdateKnowledge(IDbConnection connection, ISyncableStore store, IEnumerable<IReplicaInfo> remoteKnowledge)
+        public static void ApplyChangesAndUpdateKnowledge(IDbConnection connection, ISyncableStore store,
+                                                          IEnumerable<IReplicaInfo> remoteKnowledge)
         {
-            if (conflictsExist(connection) || missingData(connection))
+            if (ConflictsExist(connection) || MissingData(connection))
                 throw new InvalidOperationException();
 
             store.BeginChanges();
             try
             {
-                updateItems(connection, store);
-                deleteItems(connection, store);
+                UpdateItems(connection, store);
+                DeleteItems(connection, store);
 
                 store.UpdateLocalKnowledge(remoteKnowledge);
                 store.AcceptChanges();
@@ -172,96 +173,110 @@ namespace SyncFoundation.Core
             }
         }
 
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Security", "CA2100:Review SQL queries for security vulnerabilities",
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Security",
+            "CA2100:Review SQL queries for security vulnerabilities",
             Justification = "No user input possible")]
-        private static void deleteItems(IDbConnection connection, ISyncableStore store)
+        private static void DeleteItems(IDbConnection connection, ISyncableStore store)
         {
             // loop backwards through types and apply deletions
-            foreach (string itemType in store.GetItemTypes().Reverse())
+            foreach (var itemType in store.GetItemTypes().Reverse())
             {
                 IDbCommand getDeletedItemsCommand = connection.CreateCommand();
-                getDeletedItemsCommand.CommandText = String.Format("SELECT * FROM SyncItems WHERE SyncStatus IN ({0},{1}) AND ItemType=@ItemType", (int)SyncStatus.Delete, (int)SyncStatus.DeleteNonExisting);
+                getDeletedItemsCommand.CommandText =
+                    String.Format("SELECT * FROM SyncItems WHERE SyncStatus IN ({0},{1}) AND ItemType=@ItemType",
+                                  (int) SyncStatus.Delete, (int) SyncStatus.DeleteNonExisting);
                 getDeletedItemsCommand.AddParameter("@ItemType", itemType);
 
-                using (IDataReader reader = getDeletedItemsCommand.ExecuteReader())
+                using (var reader = getDeletedItemsCommand.ExecuteReader())
                 {
-                    while (reader.Read())
+                    while (reader != null && reader.Read())
                     {
-                        IReplicaInfo createdReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Created");
-                        IReplicaInfo modifiedReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Modified");
-                        ISyncableItemInfo itemInfo = new SyncableItemInfo { ItemType = itemType, Created = createdReplicaInfo, Modified = modifiedReplicaInfo, Deleted = true };
+                        var createdReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Created");
+                        var modifiedReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Modified");
+                        var itemInfo = new SyncableItemInfo
+                            {
+                                ItemType = itemType,
+                                Created = createdReplicaInfo,
+                                Modified = modifiedReplicaInfo,
+                                Deleted = true
+                            };
                         store.DeleteItem(itemInfo);
                     }
                 }
-
             }
         }
 
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Security", "CA2100:Review SQL queries for security vulnerabilities",
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Security",
+            "CA2100:Review SQL queries for security vulnerabilities",
             Justification = "No user input possible")]
-        private static void updateItems(IDbConnection connection, ISyncableStore store)
+        private static void UpdateItems(IDbConnection connection, ISyncableStore store)
         {
             // loop through types and apply updates or inserts
-            foreach (string itemType in store.GetItemTypes())
+            foreach (var itemType in store.GetItemTypes())
             {
                 System.Diagnostics.Debug.WriteLine("Updating itemType = " + itemType);
 
                 IDbCommand getUpdatedItemsCommand = connection.CreateCommand();
-                getUpdatedItemsCommand.CommandText = String.Format("SELECT SyncStatus, GlobalCreatedReplica, CreatedTickCount, GlobalModifiedReplica, ModifiedTickCount, ItemData  FROM SyncItems WHERE SyncStatus IN ({0},{1}) AND ItemType=@ItemType", (int)SyncStatus.Insert, (int)SyncStatus.Update);
+                getUpdatedItemsCommand.CommandText =
+                    String.Format(
+                        "SELECT SyncStatus, GlobalCreatedReplica, CreatedTickCount, GlobalModifiedReplica, ModifiedTickCount, ItemData  FROM SyncItems WHERE SyncStatus IN ({0},{1}) AND ItemType=@ItemType",
+                        (int) SyncStatus.Insert, (int) SyncStatus.Update);
                 getUpdatedItemsCommand.AddParameter("@ItemType", itemType);
 
-                long startTick = Environment.TickCount;
-                long itemCount = 0;
-                using (IDataReader reader = getUpdatedItemsCommand.ExecuteReader())
+                using (var reader = getUpdatedItemsCommand.ExecuteReader())
                 {
-                    while (reader.Read())
+                    while (reader != null && reader.Read())
                     {
-                        itemCount++;
-                        IReplicaInfo createdReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Created");
-                        IReplicaInfo modifiedReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Modified");
-                        JObject itemData = JObject.Parse((string)reader["ItemData"]);
-                        ISyncableItemInfo itemInfo = new SyncableItemInfo { ItemType = itemType, Created = createdReplicaInfo, Modified = modifiedReplicaInfo, Deleted = false };
-                        updateItem(connection, store, itemInfo, itemData);
-
-                        if((itemCount % 500) == 0)
-                        {
-                            System.Diagnostics.Debug.WriteLine(String.Format("'{0}' is averaging {1}ms/item over {2} items", itemType, (Environment.TickCount - startTick) / itemCount, itemCount));
-                        }
-
+                        var createdReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Created");
+                        var modifiedReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Modified");
+                        var itemData = JObject.Parse((string) reader["ItemData"]);
+                        var itemInfo = new SyncableItemInfo
+                            {
+                                ItemType = itemType,
+                                Created = createdReplicaInfo,
+                                Modified = modifiedReplicaInfo,
+                                Deleted = false
+                            };
+                        UpdateItem(connection, store, itemInfo, itemData);
                     }
                 }
-                long endTick = Environment.TickCount;
-                if(itemCount != 0)
-                    System.Diagnostics.Debug.WriteLine(String.Format("Updating {0} '{1}' items took {2}ms (avg {3}ms/item)", itemCount, itemType, endTick - startTick, (endTick - startTick) / itemCount));
-                else
-                    System.Diagnostics.Debug.WriteLine(String.Format("Updating zero '{0}' items took {1}ms",itemType, endTick - startTick));
             }
         }
 
-        private static void updateItem(IDbConnection connection, ISyncableStore store, ISyncableItemInfo itemInfo, JObject itemData)
+        private static void UpdateItem(IDbConnection connection, ISyncableStore store, ISyncableItemInfo itemInfo,
+                                       JObject itemData)
         {
             // Make sure all the item refs for this item have already been handled
             foreach (var itemRefJson in itemData["item"]["itemRefs"])
             {
-                ISyncableItemInfo referencedItemInfo = SyncUtil.SyncableItemInfoFromJson(itemRefJson);
-                ISyncableItemInfo localReferencedItemInfo = store.LocateCurrentItemInfo(referencedItemInfo);
+                var referencedItemInfo = SyncableItemInfoFromJson(itemRefJson);
+                var localReferencedItemInfo = store.LocateCurrentItemInfo(referencedItemInfo);
                 if (localReferencedItemInfo == null || localReferencedItemInfo.Deleted)
                 {
-                    IDbCommand getReferencedItemCommand = connection.CreateCommand();
-                    getReferencedItemCommand.CommandText = String.Format("SELECT SyncStatus, GlobalCreatedReplica, CreatedTickCount, GlobalModifiedReplica, ModifiedTickCount, ItemData  FROM SyncItems WHERE  GlobalCreatedReplica=@GlobalCreatedReplica AND CreatedTickCount=@CreatedTickCount AND ItemType=@ItemType");
+                    var getReferencedItemCommand = connection.CreateCommand();
+                    getReferencedItemCommand.CommandText =
+                        String.Format(
+                            "SELECT SyncStatus, GlobalCreatedReplica, CreatedTickCount, GlobalModifiedReplica, ModifiedTickCount, ItemData  FROM SyncItems WHERE  GlobalCreatedReplica=@GlobalCreatedReplica AND CreatedTickCount=@CreatedTickCount AND ItemType=@ItemType");
                     getReferencedItemCommand.AddParameter("@GlobalCreatedReplica", referencedItemInfo.Created.ReplicaId);
-                    getReferencedItemCommand.AddParameter("@CreatedTickCount", referencedItemInfo.Created.ReplicaTickCount);
+                    getReferencedItemCommand.AddParameter("@CreatedTickCount",
+                                                          referencedItemInfo.Created.ReplicaTickCount);
                     getReferencedItemCommand.AddParameter("@ItemType", referencedItemInfo.ItemType);
 
-                    using (IDataReader reader = getReferencedItemCommand.ExecuteReader())
+                    using (var reader = getReferencedItemCommand.ExecuteReader())
                     {
-                        while (reader.Read())
+                        while (reader != null && reader.Read())
                         {
-                            IReplicaInfo createdReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Created");
-                            IReplicaInfo modifiedReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Modified");
-                            JObject refItemData = JObject.Parse((string)reader["ItemData"]);
-                            ISyncableItemInfo possiblyUpdatedRefItemInfo = new SyncableItemInfo { ItemType = referencedItemInfo.ItemType, Created = createdReplicaInfo, Modified = modifiedReplicaInfo, Deleted = false };
-                            updateItem(connection, store, possiblyUpdatedRefItemInfo, refItemData);
+                            var createdReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Created");
+                            var modifiedReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Modified");
+                            var refItemData = JObject.Parse((string) reader["ItemData"]);
+                            var possiblyUpdatedRefItemInfo = new SyncableItemInfo
+                                {
+                                    ItemType = referencedItemInfo.ItemType,
+                                    Created = createdReplicaInfo,
+                                    Modified = modifiedReplicaInfo,
+                                    Deleted = false
+                                };
+                            UpdateItem(connection, store, possiblyUpdatedRefItemInfo, refItemData);
                         }
                     }
                 }
@@ -270,39 +285,40 @@ namespace SyncFoundation.Core
         }
 
 
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Security", "CA2100:Review SQL queries for security vulnerabilities", 
-            Justification="No user input possible")]
-        private static bool conflictsExist(IDbConnection connection)
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Security",
+            "CA2100:Review SQL queries for security vulnerabilities",
+            Justification = "No user input possible")]
+        private static bool ConflictsExist(IDbConnection connection)
         {
-            string sql = String.Format("SELECT COUNT(*) FROM SyncItems WHERE SyncStatus IN ({0},{1},{2})", (int)SyncStatus.DeleteConflict, (int)SyncStatus.InsertConflict, (int)SyncStatus.UpdateConflict);
-            IDbCommand checkConflictsCommand = connection.CreateCommand();
+            var sql = String.Format("SELECT COUNT(*) FROM SyncItems WHERE SyncStatus IN ({0},{1},{2})",
+                                    (int) SyncStatus.DeleteConflict, (int) SyncStatus.InsertConflict,
+                                    (int) SyncStatus.UpdateConflict);
+            var checkConflictsCommand = connection.CreateCommand();
             checkConflictsCommand.CommandText = sql;
-            long conflicts = Convert.ToInt64(checkConflictsCommand.ExecuteScalar());
+            var conflicts = Convert.ToInt64(checkConflictsCommand.ExecuteScalar());
             return conflicts != 0;
         }
 
-        private static bool missingData(IDbConnection connection)
+        private static bool MissingData(IDbConnection connection)
         {
-            string sql = String.Format("SELECT COUNT(*) FROM SyncItems WHERE ItemData IS NULL");
-            IDbCommand command = connection.CreateCommand();
+            var sql = String.Format("SELECT COUNT(*) FROM SyncItems WHERE ItemData IS NULL");
+            var command = connection.CreateCommand();
             command.CommandText = sql;
-            long missing = Convert.ToInt64(command.ExecuteScalar());
+            var missing = Convert.ToInt64(command.ExecuteScalar());
             return missing != 0;
         }
 
         public static JToken GenerateItemRefAndIndex(JObject builder, ISyncableItemInfo syncableItemInfo)
         {
-            JObject itemRef = new JObject();
-            itemRef.Add("itemRefIndex", SyncUtil.AddJsonItemRef(builder, syncableItemInfo));
+            var itemRef = new JObject {{"itemRefIndex", AddJsonItemRef(builder, syncableItemInfo)}};
             return itemRef;
         }
 
         public static ISyncableItemInfo SyncableItemInfoFromJsonItemRef(JToken parentItem, JToken itemRef)
         {
-            JArray itemRefs = (JArray)parentItem["itemRefs"];
-            int i = (int)itemRef["itemRefIndex"];
-            return SyncUtil.SyncableItemInfoFromJson(itemRefs[i]);
+            var itemRefs = (JArray) parentItem["itemRefs"];
+            var i = (int) itemRef["itemRefIndex"];
+            return SyncableItemInfoFromJson(itemRefs[i]);
         }
-
     }
 }

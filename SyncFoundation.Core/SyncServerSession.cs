@@ -1,41 +1,32 @@
 ﻿using Newtonsoft.Json.Linq;
-using SyncFoundation.Core;
 using SyncFoundation.Core.Interfaces;
 using System;
-using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SyncFoundation.Core
 {
     public class SyncServerSession
     {
-        private readonly ISyncableStore store;
-        private readonly IDbConnection connection;
+        private readonly ISyncableStore _store;
+        private readonly IDbConnection _connection;
 
         public SyncServerSession(ISyncableStore store, IDbConnection connection)
         {
-            this.store = store;
-            this.connection = connection;
+            _store = store;
+            _connection = connection;
         }
 
         public JObject BeginSession(JObject request)
         {
-            List<string> remoteItemTypes = new List<string>();
-            foreach (var itemType in request["itemTypes"])
-                remoteItemTypes.Add((string)itemType);
+            var remoteItemTypes = request["itemTypes"].Select(itemType => (string) itemType).ToList();
 
-            if (!remoteItemTypes.SequenceEqual(store.GetItemTypes()))
+            if (!remoteItemTypes.SequenceEqual(_store.GetItemTypes()))
                 throw new Exception("Mismatched item types");
 
-            SessionDbHelper.CreateSessionDbTables(connection);
+            SessionDbHelper.CreateSessionDbTables(_connection);
 
-            var json = new JObject();
-            json.Add("maxBatchCount", 50);
-            json.Add("maxBatchSize", 1024 * 1024);
-            json.Add("useGzip", true);
+            var json = new JObject {{"maxBatchCount", 50}, {"maxBatchSize", 1024*1024}, {"useGzip", true}};
 
             return json;
         }
@@ -48,22 +39,22 @@ namespace SyncFoundation.Core
 
         public JObject ApplyChanges(JObject request)
         {
-            SyncUtil.ApplyChangesAndUpdateKnowledge(connection, store, SessionDbHelper.LoadRemoteKnowledge(connection));
+            SyncUtil.ApplyChangesAndUpdateKnowledge(_connection, _store, SessionDbHelper.LoadRemoteKnowledge(_connection));
 
             return new JObject();
         }
 
         public JObject GetChanges(JObject request)
         {
-            IEnumerable<ReplicaInfo> remoteKnowledge = SyncUtil.KnowledgeFromJson(request["knowledge"]);
+            var remoteKnowledge = SyncUtil.KnowledgeFromJson(request["knowledge"]);
+            var changedItems = _store.LocateChangedItems(remoteKnowledge).ToList();
 
-            var json = new JObject();
-
-            json.Add(new JProperty("knowledge", SyncUtil.KnowledgeToJson(store.GenerateLocalKnowledge())));
-
-            var changedItems = store.LocateChangedItems(remoteKnowledge);
-            SessionDbHelper.SaveChangedItems(connection, changedItems);
-            json.Add(new JProperty("totalChanges", changedItems.Count()));
+            SessionDbHelper.SaveChangedItems(_connection, changedItems);
+            var json = new JObject
+                {
+                    {"knowledge", SyncUtil.KnowledgeToJson(_store.GenerateLocalKnowledge())},
+                    {"totalChanges", changedItems.Count()}
+                };
 
             return json;
         }
@@ -75,7 +66,7 @@ namespace SyncFoundation.Core
             var json = new JObject();
 
             JObject builder = SyncUtil.JsonItemFromSyncableItemInfo(requestedItemInfo);
-            store.BuildItemData(requestedItemInfo, builder);
+            _store.BuildItemData(requestedItemInfo, builder);
             json.Add(new JProperty("item", builder));
 
             return json;
@@ -83,25 +74,25 @@ namespace SyncFoundation.Core
 
         public JObject GetItemDataBatch(JObject request)
         {
-            int startItem = (int)request["startItem"];
-            int maxBatchCount = (int)request["maxBatchCount"];
-            int maxBatchSize = (int)request["maxBatchSize"]; ;
+            var startItem = (int)request["startItem"];
+            var maxBatchCount = (int)request["maxBatchCount"];
+            var maxBatchSize = (int)request["maxBatchSize"];
 
-            JArray batchArray = new JArray();
+            var batchArray = new JArray();
 
-            IDbCommand getChangedItemsCommand = connection.CreateCommand();
+            var getChangedItemsCommand = _connection.CreateCommand();
             getChangedItemsCommand.CommandText = String.Format("SELECT ItemID, SyncStatus, ItemType, GlobalCreatedReplica, CreatedTickCount, GlobalModifiedReplica, ModifiedTickCount FROM SyncItems WHERE ItemID >= {0} ORDER BY ItemID", startItem);
-            using (IDataReader reader = getChangedItemsCommand.ExecuteReader())
+            using (var reader = getChangedItemsCommand.ExecuteReader())
             {
-                int batchSize = 0;
-                while (reader.Read())
+                var batchSize = 0;
+                while (reader != null && reader.Read())
                 {
                     ISyncableItemInfo requestedItemInfo = SessionDbHelper.SyncableItemInfoFromDataReader(reader);
 
                     var singleItem = new JObject();
                     JObject builder = SyncUtil.JsonItemFromSyncableItemInfo(requestedItemInfo);
                     if (!requestedItemInfo.Deleted)
-                        store.BuildItemData(requestedItemInfo, builder);
+                        _store.BuildItemData(requestedItemInfo, builder);
                     singleItem.Add(new JProperty("item", builder));
 
                     batchSize += singleItem.ToString().Length;
@@ -112,19 +103,16 @@ namespace SyncFoundation.Core
                 }
             }
 
-            var json = new JObject();
-            json.Add("batch", batchArray);
+            var json = new JObject {{"batch", batchArray}};
             return json;
         }
 
         public JObject PutChanges(JObject request)
         {
-            SessionDbHelper.ClearSyncItems(connection);
+            SessionDbHelper.ClearSyncItems(_connection);
 
-            IEnumerable<ReplicaInfo> remoteKnowledge = SyncUtil.KnowledgeFromJson(request["knowledge"]);
-            SessionDbHelper.SaveRemoteKnowledge(connection, remoteKnowledge);
-
-            int changeCount = (int)request["changeCount"];
+            var remoteKnowledge = SyncUtil.KnowledgeFromJson(request["knowledge"]);
+            SessionDbHelper.SaveRemoteKnowledge(_connection, remoteKnowledge);
 
             var json = new JObject();
             return json;
@@ -132,23 +120,23 @@ namespace SyncFoundation.Core
 
         public JObject PutItemDataBatch(JObject request)
         {
-            IDbCommand command = connection.CreateCommand();
+            IDbCommand command = _connection.CreateCommand();
             command.CommandText = "BEGIN";
             command.ExecuteNonQuery();
             try
             {
-                JArray batch = (JArray)request["batch"];
-                for (int i = 0; i < batch.Count; i++)
+                var batch = (JArray)request["batch"];
+                foreach (JToken item in batch)
                 {
-                    ISyncableItemInfo remoteSyncableItemInfo = SyncUtil.SyncableItemInfoFromJson(batch[i]["item"]);
-                    JObject itemData = new JObject();
-                    itemData.Add("item", batch[i]["item"]);
-                    int changeNumber = (int)batch[i]["changeNumber"];
+                    var remoteSyncableItemInfo = SyncUtil.SyncableItemInfoFromJson(item["item"]);
+                    var itemData = new JObject {{"item", item["item"]}};
+                    var remoteKnowledge = SessionDbHelper.LoadRemoteKnowledge(_connection);
 
-                    var remoteKnowledge = SessionDbHelper.LoadRemoteKnowledge(connection);
-                    ISyncableItemInfo localSyncableItemInfo = store.LocateCurrentItemInfo(remoteSyncableItemInfo);
-                    SyncStatus status = SyncUtil.CalculateSyncStatus(remoteSyncableItemInfo, localSyncableItemInfo, remoteKnowledge);
-                    SessionDbHelper.SaveItemData(connection, remoteSyncableItemInfo, status, itemData);
+                    var localSyncableItemInfo = _store.LocateCurrentItemInfo(remoteSyncableItemInfo);
+
+                    var status = SyncUtil.CalculateSyncStatus(remoteSyncableItemInfo, localSyncableItemInfo, remoteKnowledge);
+
+                    SessionDbHelper.SaveItemData(_connection, remoteSyncableItemInfo, status, itemData);
                 }
                 command.CommandText = "COMMIT";
                 command.ExecuteNonQuery();
@@ -157,6 +145,7 @@ namespace SyncFoundation.Core
             {
                 command.CommandText = "ROLLBACK";
                 command.ExecuteNonQuery();
+                throw;
             }
 
             var json = new JObject();

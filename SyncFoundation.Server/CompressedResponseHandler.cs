@@ -5,7 +5,6 @@ using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -15,7 +14,7 @@ namespace SyncFoundation.Server
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            return base.SendAsync(request, cancellationToken).ContinueWith<HttpResponseMessage>((responseToCompleteTask) =>
+            return base.SendAsync(request, cancellationToken).ContinueWith(responseToCompleteTask =>
             {
                 HttpResponseMessage response = responseToCompleteTask.Result;
 
@@ -35,8 +34,8 @@ namespace SyncFoundation.Server
 
     internal class CompressedContent : HttpContent
     {
-        private HttpContent originalContent;
-        private string encodingType;
+        private readonly HttpContent _originalContent;
+        private readonly string _encodingType;
 
         public CompressedContent(HttpContent content, string encodingType)
         {
@@ -50,21 +49,21 @@ namespace SyncFoundation.Server
                 throw new ArgumentNullException("encodingType");
             }
 
-            originalContent = content;
-            this.encodingType = encodingType.ToLowerInvariant();
+            _originalContent = content;
+            _encodingType = encodingType.ToLowerInvariant();
 
-            if (this.encodingType != "gzip" && this.encodingType != "deflate")
+            if (_encodingType != "gzip" && _encodingType != "deflate")
             {
-                throw new InvalidOperationException(string.Format("Encoding '{0}' is not supported. Only supports gzip or deflate encoding.", this.encodingType));
+                throw new InvalidOperationException(string.Format("Encoding '{0}' is not supported. Only supports gzip or deflate encoding.", _encodingType));
             }
 
             // copy the headers from the original content
-            foreach (KeyValuePair<string, IEnumerable<string>> header in originalContent.Headers)
+            foreach (KeyValuePair<string, IEnumerable<string>> header in _originalContent.Headers)
             {
-                this.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                Headers.TryAddWithoutValidation(header.Key, header.Value);
             }
 
-            this.Headers.ContentEncoding.Add(encodingType);
+            Headers.ContentEncoding.Add(encodingType);
         }
 
         protected override bool TryComputeLength(out long length)
@@ -78,16 +77,16 @@ namespace SyncFoundation.Server
         {
             Stream compressedStream = null;
 
-            if (encodingType == "gzip")
+            if (_encodingType == "gzip")
             {
                 compressedStream = new GZipStream(stream, CompressionMode.Compress, leaveOpen: true);
             }
-            else if (encodingType == "deflate")
+            else if (_encodingType == "deflate")
             {
                 compressedStream = new DeflateStream(stream, CompressionMode.Compress, leaveOpen: true);
             }
 
-            return originalContent.CopyToAsync(compressedStream).ContinueWith(tsk =>
+            return _originalContent.CopyToAsync(compressedStream).ContinueWith(tsk =>
             {
                 if (compressedStream != null)
                 {

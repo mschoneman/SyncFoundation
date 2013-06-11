@@ -5,12 +5,8 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using System.Net;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.IO;
-using System.IO.Compression;
 
 namespace SyncFoundation.Client
 {
@@ -21,203 +17,284 @@ namespace SyncFoundation.Client
         private readonly ISyncSessionDbConnectionProvider _syncSessionDbConnectionProvider;
         private readonly string _localSessionId;
 
-        private IProgress<SyncProgress> _progressWatcher = null;
-        private string _remoteSessionId = null;
-        private IEnumerable<IReplicaInfo> _remoteKnowledge = null;
+        private IProgress<SyncProgress> _progressWatcher;
+        private string _remoteSessionId;
+        private IEnumerable<IReplicaInfo> _remoteKnowledge;
         private Task<IEnumerable<SyncConflict>> _task;
         private CancellationToken _cancellationToken = CancellationToken.None;
-        private bool _closed = false;
+        private bool _closed;
 
         public int PushMaxBatchCount { get; set; }
         public int PushMaxBatchSize { get; set; }
 
         public int PullMaxBatchCount { get; set; }
-        public int PullMaxBatchSize { get; set; } 
+        public int PullMaxBatchSize { get; set; }
 
-        public SyncSession(ISyncableStore store, ISyncSessionDbConnectionProvider syncSessionDbConnectionProvider, ISyncTransport transport)
+        public SyncSession(ISyncableStore store, ISyncSessionDbConnectionProvider syncSessionDbConnectionProvider,
+                           ISyncTransport transport)
         {
+            if (store == null)
+                throw new ArgumentNullException("store");
+            if (syncSessionDbConnectionProvider == null)
+                throw new ArgumentNullException("syncSessionDbConnectionProvider");
+            if (transport == null)
+                throw new ArgumentNullException("transport");
+
             PushMaxBatchCount = 500;
-            PushMaxBatchSize = 1024 * 1024;
+            PushMaxBatchSize = 1024*1024;
 
             PullMaxBatchCount = 5000;
-            PullMaxBatchSize = 1024 * 1024 * 10;
+            PullMaxBatchSize = 1024*1024*10;
 
             _store = store;
             _syncSessionDbConnectionProvider = syncSessionDbConnectionProvider;
             _transport = transport;
             _localSessionId = Guid.NewGuid().ToString();
             _syncSessionDbConnectionProvider.SessionStart(_localSessionId);
-            using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_localSessionId))
+            using (var connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_localSessionId))
             {
                 SessionDbHelper.CreateSessionDbTables(connection);
             }
         }
 
-        private void reportProgressAndCheckCacellation(SyncProgress progress)
+        private void ReportProgressAndCheckCacellation(SyncProgress progress)
         {
             _cancellationToken.ThrowIfCancellationRequested();
-            if(_progressWatcher != null)
+            if (_progressWatcher != null)
                 _progressWatcher.Report(progress);
         }
 
 
-        private async Task openSession()
+        private async Task OpenSession()
         {
-            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.Connecting, PercentComplete = 0, Message = "Opening Session" });
-            JObject request = new JObject();
-            JArray types = new JArray();
+            ReportProgressAndCheckCacellation(new SyncProgress
+                {
+                    Stage = SyncStage.Connecting,
+                    PercentComplete = 0,
+                    Message = "Opening Session"
+                });
+
+            var request = new JObject();
+            var types = new JArray();
             foreach (var type in _store.GetItemTypes())
                 types.Add(type);
             request.Add("itemTypes", types);
 
-            JObject response = await _transport.TransportAsync(SyncEndpoint.BeginSession, request);
-            _remoteSessionId = (string)response["sessionID"];
-            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.Connecting, PercentComplete = 100, Message = "Session Established" });
+            var response = await _transport.TransportAsync(SyncEndpoint.BeginSession, request);
+            _remoteSessionId = (string) response["sessionID"];
+
+            ReportProgressAndCheckCacellation(new SyncProgress
+                {
+                    Stage = SyncStage.Connecting,
+                    PercentComplete = 100,
+                    Message = "Session Established"
+                });
         }
 
-        private async Task closeSession()
+        private async Task CloseSession()
         {
-            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.Disconnecting, PercentComplete = 0, Message = "Closing Session" });
-            JObject request = new JObject();
-            request.Add("sessionID", _remoteSessionId);
-            JObject response = await _transport.TransportAsync(SyncEndpoint.EndSession, request);
+            ReportProgressAndCheckCacellation(new SyncProgress
+                {
+                    Stage = SyncStage.Disconnecting,
+                    PercentComplete = 0,
+                    Message = "Closing Session"
+                });
+            var request = new JObject {{"sessionID", _remoteSessionId}};
+
+            await _transport.TransportAsync(SyncEndpoint.EndSession, request);
+
             _remoteSessionId = null;
             _syncSessionDbConnectionProvider.SessionEnd(_remoteSessionId);
-            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.Disconnecting, PercentComplete = 100, Message = "Session Closed" });
+            ReportProgressAndCheckCacellation(new SyncProgress
+                {
+                    Stage = SyncStage.Disconnecting,
+                    PercentComplete = 100,
+                    Message = "Session Closed"
+                });
         }
 
-        private async Task<IEnumerable<SyncConflict>> pullChanges()
+        private async Task<IEnumerable<SyncConflict>> PullChanges()
         {
-            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.FindingRemoteChanges, PercentComplete = 0, Message = "Looking for remote changes" });
+            ReportProgressAndCheckCacellation(new SyncProgress
+                {
+                    Stage = SyncStage.FindingRemoteChanges,
+                    PercentComplete = 0,
+                    Message = "Looking for remote changes"
+                });
 
-            JObject request = new JObject();
-            request.Add("sessionID", _remoteSessionId);
+            var request = new JObject {{"sessionID", _remoteSessionId}};
 
-            var localKnowledge = _store.GenerateLocalKnowledge();
+            var localKnowledge = _store.GenerateLocalKnowledge().ToList();
             request.Add(new JProperty("knowledge", SyncUtil.KnowledgeToJson(localKnowledge)));
 
             JObject response = await _transport.TransportAsync(SyncEndpoint.GetChanges, request);
             _remoteKnowledge = SyncUtil.KnowledgeFromJson(response["knowledge"]);
-            int totalChanges = (int)response["totalChanges"];
+            var totalChanges = (int) response["totalChanges"];
 
-            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.FindingRemoteChanges, PercentComplete = 100, Message = String.Format("Found {0} remote changes", totalChanges) });
+            ReportProgressAndCheckCacellation(new SyncProgress
+                {
+                    Stage = SyncStage.FindingRemoteChanges,
+                    PercentComplete = 100,
+                    Message = String.Format("Found {0} remote changes", totalChanges)
+                });
 
-            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.DownloadingRemoteChanges, PercentComplete = 0, Message = String.Format("Downloading {0} remote changes", totalChanges) });
-            using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_localSessionId))
+            ReportProgressAndCheckCacellation(new SyncProgress
+                {
+                    Stage = SyncStage.DownloadingRemoteChanges,
+                    PercentComplete = 0,
+                    Message = String.Format("Downloading {0} remote changes", totalChanges)
+                });
+            using (var connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_localSessionId))
             {
-                IDbCommand command = connection.CreateCommand();
-                command.CommandText = "BEGIN";
-                command.ExecuteNonQuery();
+                connection.ExecuteNonQuery("BEGIN");
                 SessionDbHelper.ClearSyncItems(connection);
 
                 long startTick = Environment.TickCount;
                 int previousPercentComplete = -1;
-                for (int i = 1; i <= totalChanges; )
+                for (int i = 1; i <= totalChanges;)
                 {
-                    i += await saveChangesBatch(connection, localKnowledge, i);
+                    i += await SaveChangesBatch(connection, localKnowledge, i);
 
-                    int percentComplete = ((i * 100) / totalChanges);
+                    int percentComplete = ((i*100)/totalChanges);
                     if (percentComplete != previousPercentComplete)
                     {
-                        reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.DownloadingRemoteChanges, PercentComplete = percentComplete, Message = String.Format("Downloading remote changes, {0}% complete ({1})", percentComplete, String.Format("Averaging {0}ms/item over {1} items", (Environment.TickCount - startTick) / i, i)) });
+                        ReportProgressAndCheckCacellation(new SyncProgress
+                            {
+                                Stage = SyncStage.DownloadingRemoteChanges,
+                                PercentComplete = percentComplete,
+                                Message =
+                                    String.Format("Downloading remote changes, {0}% complete ({1})", percentComplete,
+                                                  String.Format("Averaging {0}ms/item over {1} items",
+                                                                (Environment.TickCount - startTick)/i, i))
+                            });
                     }
                     previousPercentComplete = percentComplete;
-
                 }
-                command.CommandText = "COMMIT";
-                command.ExecuteNonQuery();
-                reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.DownloadingRemoteChanges, PercentComplete = 100, Message = String.Format("Downloaded all {0} remote changes", totalChanges) });
+                connection.ExecuteNonQuery("COMMIT");
+                ReportProgressAndCheckCacellation(new SyncProgress
+                    {
+                        Stage = SyncStage.DownloadingRemoteChanges,
+                        PercentComplete = 100,
+                        Message = String.Format("Downloaded all {0} remote changes", totalChanges)
+                    });
 
-                reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.CheckingForConflicts, PercentComplete = 0, Message = "Looking for conflicts"});
-                List<SyncConflict> conflicts = new List<SyncConflict>();
-                conflicts.AddRange(checkForDuplicates(connection));
-                conflicts.AddRange(loadConflicts(connection));
-                reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.CheckingForConflicts, PercentComplete = 100, Message = String.Format("Found {0} conflicts", conflicts.Count) });
+                ReportProgressAndCheckCacellation(new SyncProgress
+                    {
+                        Stage = SyncStage.CheckingForConflicts,
+                        PercentComplete = 0,
+                        Message = "Looking for conflicts"
+                    });
+                var conflicts = new List<SyncConflict>();
+                conflicts.AddRange(CheckForDuplicates(connection));
+                conflicts.AddRange(LoadConflicts(connection));
+                ReportProgressAndCheckCacellation(new SyncProgress
+                    {
+                        Stage = SyncStage.CheckingForConflicts,
+                        PercentComplete = 100,
+                        Message = String.Format("Found {0} conflicts", conflicts.Count)
+                    });
                 return conflicts;
             }
         }
 
-        private async Task<int> saveChangesBatch(IDbConnection connection, IEnumerable<IReplicaInfo> localKnowledge, int startItem)
+        private async Task<int> SaveChangesBatch(IDbConnection connection, IList<IReplicaInfo> localKnowledge,
+                                                 int startItem)
         {
-            JObject request = new JObject();
-            request.Add("sessionID", _remoteSessionId);
-            request.Add("startItem", startItem);
-            request.Add("maxBatchCount", PullMaxBatchCount);
-            request.Add("maxBatchSize", PullMaxBatchSize);
+            var request = new JObject
+                {
+                    {"sessionID", _remoteSessionId},
+                    {"startItem", startItem},
+                    {"maxBatchCount", PullMaxBatchCount},
+                    {"maxBatchSize", PullMaxBatchSize}
+                };
 
             JObject response = await _transport.TransportAsync(SyncEndpoint.GetItemDataBatch, request);
-            JArray batch = (JArray)response["batch"];
+            var batch = (JArray) response["batch"];
 
-            for (int i = 0; i < batch.Count; i++)
+            foreach (var item in batch)
             {
-                ISyncableItemInfo remoteSyncableItemInfo = SyncUtil.SyncableItemInfoFromJson(batch[i]["item"]);
-                JObject itemData = new JObject();
-                itemData.Add("item", batch[i]["item"]);
+                ISyncableItemInfo remoteSyncableItemInfo = SyncUtil.SyncableItemInfoFromJson(item["item"]);
+                var itemData = new JObject {{"item", item["item"]}};
 
-                SyncStatus status = SyncStatus.MayBeNeeded;
+                var status = SyncStatus.MayBeNeeded;
                 if (!SyncUtil.KnowledgeContains(localKnowledge, remoteSyncableItemInfo.Modified))
                 {
                     ISyncableItemInfo localSyncableItemInfo = _store.LocateCurrentItemInfo(remoteSyncableItemInfo);
-                    status = SyncUtil.CalculateSyncStatus(remoteSyncableItemInfo, localSyncableItemInfo, _remoteKnowledge);
+                    status = SyncUtil.CalculateSyncStatus(remoteSyncableItemInfo, localSyncableItemInfo,
+                                                          _remoteKnowledge);
                 }
                 SessionDbHelper.SaveItemData(connection, remoteSyncableItemInfo, status, itemData);
-                JArray itemRefs = (JArray)itemData["item"]["itemRefs"];
-                foreach (var item in itemRefs)
+                var itemRefs = (JArray) itemData["item"]["itemRefs"];
+                foreach (var itemRef in itemRefs)
                 {
-                    ISyncableItemInfo itemRefInfo = SyncUtil.SyncableItemInfoFromJson(item);
+                    ISyncableItemInfo itemRefInfo = SyncUtil.SyncableItemInfoFromJson(itemRef);
                     ISyncableItemInfo localItemRefInfo = _store.LocateCurrentItemInfo(itemRefInfo);
                     if (localItemRefInfo != null && localItemRefInfo.Deleted)
-                        await saveSyncData(connection, itemRefInfo, SyncStatus.MayBeNeeded);
+                        await SaveSyncData(connection, itemRefInfo, SyncStatus.MayBeNeeded);
                 }
             }
             return batch.Count;
         }
 
-        private IEnumerable<SyncConflict> loadConflicts(IDbConnection connection)
+        private IEnumerable<SyncConflict> LoadConflicts(IDbConnection connection)
         {
-            List<SyncConflict> conflicts = new List<SyncConflict>();
+            var conflicts = new List<SyncConflict>();
             IDbCommand getInsertedItemsCommand = connection.CreateCommand();
-            getInsertedItemsCommand.CommandText = String.Format("SELECT ItemID, SyncStatus, ItemType, GlobalCreatedReplica, CreatedTickCount, GlobalModifiedReplica, ModifiedTickCount, ItemData  FROM SyncItems WHERE SyncStatus NOT IN ({0},{1},{2},{3},{4},{5})", 
-                (int)SyncStatus.Insert,
-                (int)SyncStatus.Update,
-                (int)SyncStatus.Delete,
-                (int)SyncStatus.DeleteNonExisting,
-                (int)SyncStatus.MayBeNeeded,
-                (int)SyncStatus.InsertConflict
-                );
-            using (IDataReader reader = getInsertedItemsCommand.ExecuteReader())
+            getInsertedItemsCommand.CommandText =
+                String.Format(
+                    "SELECT ItemID, SyncStatus, ItemType, GlobalCreatedReplica, CreatedTickCount, GlobalModifiedReplica, ModifiedTickCount, ItemData  FROM SyncItems WHERE SyncStatus NOT IN ({0},{1},{2},{3},{4},{5})",
+                    (int) SyncStatus.Insert,
+                    (int) SyncStatus.Update,
+                    (int) SyncStatus.Delete,
+                    (int) SyncStatus.DeleteNonExisting,
+                    (int) SyncStatus.MayBeNeeded,
+                    (int) SyncStatus.InsertConflict
+                    );
+            using (var reader = getInsertedItemsCommand.ExecuteReader())
             {
-                while (reader.Read())
+                while (reader != null && reader.Read())
                 {
-                    IReplicaInfo createdReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Created");
-                    IReplicaInfo modifiedReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Modified");
-                    string itemType = (string)reader["ItemType"];
-                    ISyncableItemInfo remoteItemInfo = new SyncableItemInfo { ItemType = itemType, Created = createdReplicaInfo, Modified = modifiedReplicaInfo, Deleted = false };
-                    long itemId = Convert.ToInt64(reader["ItemID"]);
-                    SyncStatus status = (SyncStatus)reader["SyncStatus"];
+                    var createdReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Created");
+                    var modifiedReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Modified");
+                    var itemType = (string) reader["ItemType"];
+                    var remoteItemInfo = new SyncableItemInfo
+                        {
+                            ItemType = itemType,
+                            Created = createdReplicaInfo,
+                            Modified = modifiedReplicaInfo,
+                            Deleted = false
+                        };
+                    var itemId = Convert.ToInt64(reader["ItemID"]);
+                    var status = (SyncStatus) reader["SyncStatus"];
 
                     ISyncableItemInfo localItemInfo = _store.LocateCurrentItemInfo(remoteItemInfo);
-                    
+
                     if (status == SyncStatus.UpdateConflict)
                     {
                         // Check to see if the "conflict" is actually an exact same update
-                        JObject builder = SyncUtil.JsonItemFromSyncableItemInfo(localItemInfo);
+                        var builder = SyncUtil.JsonItemFromSyncableItemInfo(localItemInfo);
                         _store.BuildItemData(localItemInfo, builder);
 
-                        JObject localItemData = new JObject();
-                        localItemData.Add("item", builder);
+                        var localItemData = new JObject {{"item", builder}};
 
-                        JObject remoteItemData = JObject.Parse((string)reader["ItemData"]);
-                        DuplicateStatus dupStatus = _store.GetDuplicateStatus(remoteItemInfo.ItemType, localItemData, remoteItemData);
+                        var remoteItemData = JObject.Parse((string) reader["ItemData"]);
+                        var dupStatus = _store.GetDuplicateStatus(remoteItemInfo.ItemType, localItemData,
+                                                                  remoteItemData);
                         if (dupStatus == DuplicateStatus.Exact)
                         {
-                            long tickCount = _store.IncrementLocalRepilcaTickCount();
-                            IReplicaInfo modifiedReplica = new ReplicaInfo { ReplicaId = _store.GetLocalReplicaId(), ReplicaTickCount = tickCount };
-                            SessionDbHelper.ResolveItemNoData(connection, remoteItemInfo, SyncStatus.Update, modifiedReplica); // TODO: Really should have an update status that just updates the modified repos without doing everything else, but this should work
+                            var tickCount = _store.IncrementLocalRepilcaTickCount();
+                            var modifiedReplica = new ReplicaInfo
+                                {
+                                    ReplicaId = _store.GetLocalReplicaId(),
+                                    ReplicaTickCount = tickCount
+                                };
+                            SessionDbHelper.ResolveItemNoData(connection, remoteItemInfo, SyncStatus.Update,
+                                                              modifiedReplica);
+                            // TODO: Really should have an update status that just updates the modified repos without doing everything else, but this should work
                             continue;
                         }
                     }
-                     
+
                     conflicts.Add(new SyncConflict(itemId, status, localItemInfo, remoteItemInfo));
                 }
             }
@@ -225,25 +302,34 @@ namespace SyncFoundation.Client
             return conflicts;
         }
 
-        private IEnumerable<SyncConflict> checkForDuplicates(IDbConnection connection)
+        private IEnumerable<SyncConflict> CheckForDuplicates(IDbConnection connection)
         {
-            List<SyncConflict> conflicts = new List<SyncConflict>();
+            var conflicts = new List<SyncConflict>();
 
-            var changedItemInfos = _store.LocateChangedItems(_remoteKnowledge);
+            var changedItemInfos = _store.LocateChangedItems(_remoteKnowledge).ToList();
 
             foreach (string itemType in _store.GetItemTypes())
             {
                 IDbCommand getInsertedItemsCommand = connection.CreateCommand();
-                getInsertedItemsCommand.CommandText = String.Format("SELECT ItemID, SyncStatus, ItemType, GlobalCreatedReplica, CreatedTickCount, GlobalModifiedReplica, ModifiedTickCount, ItemData  FROM SyncItems WHERE SyncStatus={0} AND ItemType='{1}'", (int)SyncStatus.Insert, itemType);
+                getInsertedItemsCommand.CommandText =
+                    String.Format(
+                        "SELECT ItemID, SyncStatus, ItemType, GlobalCreatedReplica, CreatedTickCount, GlobalModifiedReplica, ModifiedTickCount, ItemData  FROM SyncItems WHERE SyncStatus={0} AND ItemType='{1}'",
+                        (int) SyncStatus.Insert, itemType);
                 using (IDataReader reader = getInsertedItemsCommand.ExecuteReader())
                 {
-                    while (reader.Read())
+                    while (reader != null && reader.Read())
                     {
                         long itemId = Convert.ToInt64(reader["ItemID"]);
                         IReplicaInfo createdReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Created");
                         IReplicaInfo modifiedReplicaInfo = SessionDbHelper.ReplicaInfoFromDataReader(reader, "Modified");
-                        ISyncableItemInfo remoteItemInfo = new SyncableItemInfo { ItemType = itemType, Created = createdReplicaInfo, Modified = modifiedReplicaInfo, Deleted = false };
-                        JObject remoteItemData = JObject.Parse((string)reader["ItemData"]);
+                        ISyncableItemInfo remoteItemInfo = new SyncableItemInfo
+                            {
+                                ItemType = itemType,
+                                Created = createdReplicaInfo,
+                                Modified = modifiedReplicaInfo,
+                                Deleted = false
+                            };
+                        var remoteItemData = JObject.Parse((string) reader["ItemData"]);
 
                         foreach (var changedItemInfo in changedItemInfos)
                         {
@@ -253,26 +339,33 @@ namespace SyncFoundation.Client
                                 continue;
 
                             // Inserted here without remote knowledge, could be a dup
-                            JObject builder = SyncUtil.JsonItemFromSyncableItemInfo(changedItemInfo);
+                            var builder = SyncUtil.JsonItemFromSyncableItemInfo(changedItemInfo);
                             _store.BuildItemData(changedItemInfo, builder);
 
-                            JObject localItemData = new JObject();
-                            localItemData.Add("item", builder);
+                            var localItemData = new JObject {{"item", builder}};
 
-                            DuplicateStatus dupStatus = _store.GetDuplicateStatus(remoteItemInfo.ItemType, localItemData, remoteItemData);
+                            DuplicateStatus dupStatus = _store.GetDuplicateStatus(remoteItemInfo.ItemType, localItemData,
+                                                                                  remoteItemData);
                             if (dupStatus == DuplicateStatus.Exact)
                             {
                                 SessionDbHelper.ReplaceAllItemRefs(connection, _store, remoteItemInfo, changedItemInfo);
                                 long tickCount = _store.IncrementLocalRepilcaTickCount();
-                                IReplicaInfo modifiedReplica = new ReplicaInfo { ReplicaId = _store.GetLocalReplicaId(), ReplicaTickCount = tickCount };
-                                SessionDbHelper.ResolveItemNoData(connection, remoteItemInfo, SyncStatus.DeleteNonExisting, modifiedReplica);
+                                IReplicaInfo modifiedReplica = new ReplicaInfo
+                                    {
+                                        ReplicaId = _store.GetLocalReplicaId(),
+                                        ReplicaTickCount = tickCount
+                                    };
+                                SessionDbHelper.ResolveItemNoData(connection, remoteItemInfo,
+                                                                  SyncStatus.DeleteNonExisting, modifiedReplica);
                                 break;
                             }
                             if (dupStatus == DuplicateStatus.Possible)
                             {
                                 // TODO: clean this up, this call does more than we need
-                                SessionDbHelper.ResolveItemNoData(connection, remoteItemInfo, SyncStatus.InsertConflict, remoteItemInfo.Modified);
-                                conflicts.Add(new SyncConflict(itemId, SyncStatus.InsertConflict, changedItemInfo, remoteItemInfo));
+                                SessionDbHelper.ResolveItemNoData(connection, remoteItemInfo, SyncStatus.InsertConflict,
+                                                                  remoteItemInfo.Modified);
+                                conflicts.Add(new SyncConflict(itemId, SyncStatus.InsertConflict, changedItemInfo,
+                                                               remoteItemInfo));
                                 break;
                             }
                         }
@@ -282,134 +375,177 @@ namespace SyncFoundation.Client
             return conflicts;
         }
 
-        private async Task saveSyncData(IDbConnection connection, ISyncableItemInfo remoteSyncableItemInfo, SyncStatus status)
+        private async Task SaveSyncData(IDbConnection connection, ISyncableItemInfo remoteSyncableItemInfo,
+                                        SyncStatus status)
         {
-            JObject data = JObject.Parse("{item:{itemRefs:[]}}");
+            var data = JObject.Parse("{item:{itemRefs:[]}}");
             if (!remoteSyncableItemInfo.Deleted)
             {
-                JObject request = new JObject();
-                request.Add("sessionID", _remoteSessionId);
-                request.Add(new JProperty("item", SyncUtil.SyncableItemInfoToJson(remoteSyncableItemInfo)));
-                JObject response = await _transport.TransportAsync(SyncEndpoint.GetItemData, request);
+                var request = new JObject
+                    {
+                        {"sessionID", _remoteSessionId},
+                        {"item", SyncUtil.SyncableItemInfoToJson(remoteSyncableItemInfo)}
+                    };
+                var response = await _transport.TransportAsync(SyncEndpoint.GetItemData, request);
                 data = response;
             }
 
             SessionDbHelper.SaveItemData(connection, remoteSyncableItemInfo, status, data);
 
-            JArray itemRefs = (JArray)data["item"]["itemRefs"];
+            var itemRefs = (JArray) data["item"]["itemRefs"];
             foreach (var item in itemRefs)
             {
                 ISyncableItemInfo itemRefInfo = SyncUtil.SyncableItemInfoFromJson(item);
-                ISyncableItemInfo  localItemRefInfo = _store.LocateCurrentItemInfo(itemRefInfo);
-                if(localItemRefInfo != null && localItemRefInfo.Deleted)
-                    await saveSyncData(connection, itemRefInfo, SyncStatus.MayBeNeeded);
+                ISyncableItemInfo localItemRefInfo = _store.LocateCurrentItemInfo(itemRefInfo);
+                if (localItemRefInfo != null && localItemRefInfo.Deleted)
+                    await SaveSyncData(connection, itemRefInfo, SyncStatus.MayBeNeeded);
             }
         }
 
-        private void commitChanges()
+        private void CommitChanges()
         {
             if (_remoteKnowledge == null)
                 return;
 
-            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.ApplyingChangesLocally, PercentComplete = 0, Message = "Applying changes locally" });
-            using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_localSessionId))
+            ReportProgressAndCheckCacellation(new SyncProgress
+                {
+                    Stage = SyncStage.ApplyingChangesLocally,
+                    PercentComplete = 0,
+                    Message = "Applying changes locally"
+                });
+            using (
+                IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_localSessionId))
             {
                 SyncUtil.ApplyChangesAndUpdateKnowledge(connection, _store, _remoteKnowledge);
             }
-            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.ApplyingChangesLocally, PercentComplete = 100, Message = "Applied all changes locally" });
+            ReportProgressAndCheckCacellation(new SyncProgress
+                {
+                    Stage = SyncStage.ApplyingChangesLocally,
+                    PercentComplete = 100,
+                    Message = "Applied all changes locally"
+                });
         }
 
-        private async Task pushChanges()
+        private async Task PushChanges()
         {
-            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.FindingLocalChanges, PercentComplete = 0, Message = "Finding local changes" });
+            ReportProgressAndCheckCacellation(new SyncProgress
+                {
+                    Stage = SyncStage.FindingLocalChanges,
+                    PercentComplete = 0,
+                    Message = "Finding local changes"
+                });
 
-            JObject request = new JObject();
-            request.Add("sessionID", _remoteSessionId);
+            var request = new JObject {{"sessionID", _remoteSessionId}};
 
             var localKnowledge = _store.GenerateLocalKnowledge();
-            var changedItemInfos = _store.LocateChangedItems(_remoteKnowledge);
+            var changedItemInfos = _store.LocateChangedItems(_remoteKnowledge).ToList();
 
             int totalChanges = changedItemInfos.Count();
             request.Add(new JProperty("knowledge", SyncUtil.KnowledgeToJson(localKnowledge)));
             request.Add(new JProperty("changeCount", totalChanges));
 
-            JObject response = await _transport.TransportAsync(SyncEndpoint.PutChanges, request);
+            await _transport.TransportAsync(SyncEndpoint.PutChanges, request);
 
-            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.FindingLocalChanges, PercentComplete = 100, Message = String.Format("Found {0} local changes", totalChanges) });
+            ReportProgressAndCheckCacellation(new SyncProgress
+                {
+                    Stage = SyncStage.FindingLocalChanges,
+                    PercentComplete = 100,
+                    Message = String.Format("Found {0} local changes", totalChanges)
+                });
 
-            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.UploadingLocalChanges, PercentComplete = 0, Message = String.Format("Uploading {0} local changes", totalChanges) });
+            ReportProgressAndCheckCacellation(new SyncProgress
+                {
+                    Stage = SyncStage.UploadingLocalChanges,
+                    PercentComplete = 0,
+                    Message = String.Format("Uploading {0} local changes", totalChanges)
+                });
+
             int maxBatchCount = PushMaxBatchCount;
             int maxBatchSize = PushMaxBatchSize;
-
             long startTick = Environment.TickCount;
             int previousPercentComplete = -1;
             int i = 0;
-            JArray batchArray = new JArray();
+            var batchArray = new JArray();
             int batchSize = 0;
             foreach (ISyncableItemInfo syncItemInfo in changedItemInfos)
             {
                 i++;
-                int percentComplete = ((i * 100) / totalChanges);
+                int percentComplete = ((i*100)/totalChanges);
                 if (percentComplete != previousPercentComplete)
                 {
-                    reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.UploadingLocalChanges, PercentComplete = 100, Message = String.Format("Uploading local changes, {0}% complete ({1})", percentComplete, String.Format("Averaging {0}ms/item over {1} items", (Environment.TickCount - startTick) / i, i)) });
+                    ReportProgressAndCheckCacellation(new SyncProgress
+                        {
+                            Stage = SyncStage.UploadingLocalChanges,
+                            PercentComplete = 100,
+                            Message =
+                                String.Format("Uploading local changes, {0}% complete ({1})", percentComplete,
+                                              String.Format("Averaging {0}ms/item over {1} items",
+                                                            (Environment.TickCount - startTick)/i, i))
+                        });
                 }
                 previousPercentComplete = percentComplete;
 
-                JObject singleItemRequest = new JObject();
-                singleItemRequest.Add("changeNumber", i);
-                JObject builder = SyncUtil.JsonItemFromSyncableItemInfo(syncItemInfo);
+                var builder = SyncUtil.JsonItemFromSyncableItemInfo(syncItemInfo);
                 if (!syncItemInfo.Deleted)
                     _store.BuildItemData(syncItemInfo, builder);
-                singleItemRequest.Add(new JProperty("item", builder));
+
+                var singleItemRequest = new JObject {{"changeNumber", i}, {"item", builder}};
+
                 batchSize += singleItemRequest.ToString().Length;
                 batchArray.Add(singleItemRequest);
 
-                if (i == totalChanges || (i % maxBatchCount) == 0 || batchSize >= maxBatchSize)
+                if (i == totalChanges || (i%maxBatchCount) == 0 || batchSize >= maxBatchSize)
                 {
-                    JObject batchRequest = new JObject();
-                    batchRequest.Add("sessionID", _remoteSessionId);
-                    batchRequest.Add(new JProperty("batch", batchArray));
-                    JObject batchResponse = await _transport.TransportAsync(SyncEndpoint.PutItemDataBatch, batchRequest);
+                    var batchRequest = new JObject {{"sessionID", _remoteSessionId}, {"batch", batchArray}};
+                    await _transport.TransportAsync(SyncEndpoint.PutItemDataBatch, batchRequest);
                     batchArray = new JArray();
                     batchSize = 0;
                 }
             }
-            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.UploadingLocalChanges, PercentComplete = 100, Message = String.Format("Uploaded {0} local changes", totalChanges) });
+            ReportProgressAndCheckCacellation(new SyncProgress
+                {
+                    Stage = SyncStage.UploadingLocalChanges,
+                    PercentComplete = 100,
+                    Message = String.Format("Uploaded {0} local changes", totalChanges)
+                });
 
-            await applyChanges(totalChanges);
+            await ApplyChanges(totalChanges);
         }
 
-        private async Task applyChanges(int totalChanges)
+        private async Task ApplyChanges(int totalChanges)
         {
-            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.ApplyingChangesRemotely, PercentComplete = 0, Message = String.Format("Applying changes remotely", totalChanges) });
+            ReportProgressAndCheckCacellation(new SyncProgress
+                {
+                    Stage = SyncStage.ApplyingChangesRemotely,
+                    PercentComplete = 0,
+                    Message = "Applying changes remotely"
+                });
 
-            JObject request = new JObject();
-            request.Add("sessionID", _remoteSessionId);
+            var request = new JObject {{"sessionID", _remoteSessionId}, {"changeCount", totalChanges}};
 
-            var localKnowledge = _store.GenerateLocalKnowledge();
-            var changedItemInfos = _store.LocateChangedItems(_remoteKnowledge);
+            await _transport.TransportAsync(SyncEndpoint.ApplyChanges, request);
 
-            request.Add(new JProperty("changeCount", totalChanges));
-
-            JObject response = await _transport.TransportAsync(SyncEndpoint.ApplyChanges, request);
-
-            reportProgressAndCheckCacellation(new SyncProgress() { Stage = SyncStage.ApplyingChangesRemotely, PercentComplete = 100, Message = String.Format("Applied changes remotely", totalChanges) });
+            ReportProgressAndCheckCacellation(new SyncProgress
+                {
+                    Stage = SyncStage.ApplyingChangesRemotely,
+                    PercentComplete = 100,
+                    Message = "Applied changes remotely"
+                });
         }
 
-        private async Task<IEnumerable<SyncConflict>> sync()
+        private async Task<IEnumerable<SyncConflict>> Sync()
         {
-            commitChanges();
-            await openSession();
-            IEnumerable<SyncConflict> conflicts = await pullChanges();
+            CommitChanges();
+            await OpenSession();
+            var conflicts = await PullChanges();
             if (conflicts.Any())
             {
-                await closeSession();
+                await CloseSession();
                 return conflicts;
             }
-            commitChanges();
-            await pushChanges();
-            await closeSession();
+            CommitChanges();
+            await PushChanges();
+            await CloseSession();
             return conflicts;
         }
 
@@ -419,9 +555,11 @@ namespace SyncFoundation.Client
                 return;
 
             _syncSessionDbConnectionProvider.SessionEnd(_localSessionId);
+            _closed = true;
         }
 
-        public Task<IEnumerable<SyncConflict>> SyncWithRemoteAsync(IProgress<SyncProgress> progress, CancellationToken cancellationToken)
+        public Task<IEnumerable<SyncConflict>> SyncWithRemoteAsync(IProgress<SyncProgress> progress,
+                                                                   CancellationToken cancellationToken)
         {
             if (_closed)
                 throw new InvalidOperationException();
@@ -429,7 +567,7 @@ namespace SyncFoundation.Client
                 throw new InvalidOperationException();
             _progressWatcher = progress;
             _cancellationToken = cancellationToken;
-            _task = Task.Run(() => sync(), cancellationToken);
+            _task = Task.Run(() => Sync(), cancellationToken);
             return _task;
         }
 
@@ -443,10 +581,14 @@ namespace SyncFoundation.Client
             if (_closed)
                 throw new InvalidOperationException();
 
-            long tickCount = _store.IncrementLocalRepilcaTickCount();
-            IReplicaInfo modifiedReplica = new ReplicaInfo { ReplicaId = _store.GetLocalReplicaId(), ReplicaTickCount = tickCount };
-            SyncStatus resolvedStatus = conflict.RemoteItemInfo.Deleted ? SyncStatus.Delete : SyncStatus.Update;
-            using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_localSessionId))
+            var tickCount = _store.IncrementLocalRepilcaTickCount();
+            var modifiedReplica = new ReplicaInfo
+                {
+                    ReplicaId = _store.GetLocalReplicaId(),
+                    ReplicaTickCount = tickCount
+                };
+            var resolvedStatus = conflict.RemoteItemInfo.Deleted ? SyncStatus.Delete : SyncStatus.Update;
+            using (var connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_localSessionId))
             {
                 SessionDbHelper.ResolveItemNoData(connection, conflict.RemoteItemInfo, resolvedStatus, modifiedReplica);
             }
@@ -457,22 +599,26 @@ namespace SyncFoundation.Client
             if (_closed)
                 throw new InvalidOperationException();
 
-            long tickCount = _store.IncrementLocalRepilcaTickCount();
-            IReplicaInfo modifiedReplica = new ReplicaInfo { ReplicaId = _store.GetLocalReplicaId(), ReplicaTickCount = tickCount };
-            SyncStatus resolvedStatus = conflict.LocalItemInfo.Deleted ? SyncStatus.Delete : SyncStatus.Update;
-            JObject data = JObject.Parse("{item:{itemRefs:[]}}");
+            var tickCount = _store.IncrementLocalRepilcaTickCount();
+            var modifiedReplica = new ReplicaInfo
+                {
+                    ReplicaId = _store.GetLocalReplicaId(),
+                    ReplicaTickCount = tickCount
+                };
+            var resolvedStatus = conflict.LocalItemInfo.Deleted ? SyncStatus.Delete : SyncStatus.Update;
+            var data = JObject.Parse("{item:{itemRefs:[]}}");
 
             if (resolvedStatus != SyncStatus.Delete)
             {
-                JObject builder = SyncUtil.JsonItemFromSyncableItemInfo(conflict.LocalItemInfo);
+                var builder = SyncUtil.JsonItemFromSyncableItemInfo(conflict.LocalItemInfo);
                 _store.BuildItemData(conflict.LocalItemInfo, builder);
-                data = new JObject();
-                data.Add("item", builder);
+                data = new JObject {{"item", builder}};
             }
 
-            using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_localSessionId))
+            using (var connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_localSessionId))
             {
-                SessionDbHelper.ResolveItemWithData(connection, conflict.RemoteItemInfo, resolvedStatus, modifiedReplica, data);
+                SessionDbHelper.ResolveItemWithData(connection, conflict.RemoteItemInfo, resolvedStatus, modifiedReplica,
+                                                    data);
             }
         }
 
@@ -482,15 +628,18 @@ namespace SyncFoundation.Client
                 throw new InvalidOperationException();
 
             long tickCount = _store.IncrementLocalRepilcaTickCount();
-            IReplicaInfo modifiedReplica = new ReplicaInfo { ReplicaId = _store.GetLocalReplicaId(), ReplicaTickCount = tickCount };
-            SyncStatus resolvedStatus = SyncStatus.Update;
+            IReplicaInfo modifiedReplica = new ReplicaInfo
+                {
+                    ReplicaId = _store.GetLocalReplicaId(),
+                    ReplicaTickCount = tickCount
+                };
             ISyncableItemInfo itemInfo = conflict.RemoteItemInfo;
 
-            using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_localSessionId))
+            using (
+                IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_localSessionId))
             {
-                SessionDbHelper.ResolveItemWithData(connection, itemInfo, resolvedStatus, modifiedReplica, itemData);
+                SessionDbHelper.ResolveItemWithData(connection, itemInfo, SyncStatus.Update, modifiedReplica, itemData);
             }
         }
-
     }
 }

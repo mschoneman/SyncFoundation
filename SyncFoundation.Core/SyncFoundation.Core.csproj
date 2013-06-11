@@ -50,7 +50,7 @@
   <ItemGroup>
     <Compile Include="DirectSyncTransport.cs" />
     <Compile Include="DuplicateStatus.cs" />
-    <Compile Include="DbCommandExtensions.cs" />
+    <Compile Include="DbExtensions.cs" />
     <Compile Include="Interfaces\ISyncableItemDataBuilder.cs" />
     <Compile Include="Interfaces\ISyncableItemInfo.cs" />
     <Compile Include="Interfaces\IReplicaInfo.cs" />

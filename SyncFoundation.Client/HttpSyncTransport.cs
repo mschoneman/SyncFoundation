@@ -2,7 +2,6 @@
 using SyncFoundation.Core.Interfaces;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net.Http;
 #if NETFX_CORE
 using Windows.Security.Cryptography;
@@ -33,8 +32,8 @@ namespace SyncFoundation.Client
 
         public async Task<JObject> TransportAsync(SyncEndpoint endpoint, JObject contents)
         {
-            JObject request = new JObject(contents);
-            addCredentials(request);
+            var request = new JObject(contents);
+            AddCredentials(request);
             var content = new StringContent(request.ToString(),Encoding.UTF8,"application/json");
             var compressedContent = new CompressedContent(content, "gzip");
 
@@ -69,51 +68,53 @@ namespace SyncFoundation.Client
                     throw new Exception("Unknown endpoint");
             }
 
-            HttpResponseMessage responseMessage = await client.PostAsync(remoteEndpoint, compressedContent);
-            string responseString = await responseMessage.Content.ReadAsStringAsync();
+            var responseMessage = await Client.PostAsync(remoteEndpoint, compressedContent);
+            var responseString = await responseMessage.Content.ReadAsStringAsync();
 
             if (!responseMessage.IsSuccessStatusCode)
                 throw new Exception(String.Format("Remote call failed (HTTP Status Code {0}): {1}", responseMessage.StatusCode, responseString));
 
-            JObject response = JObject.Parse(responseString);
+            var response = JObject.Parse(responseString);
 
-            if (response["errorCode"] != null)
+            if (response["ErrorCode"] != null)
             {
-                throw new Exception(String.Format("Remote call failed with error code {0} - {1}",response["errorCode"], response["errorMessage"]));
+                throw new Exception(String.Format("Remote call failed with error code {0} - {1}",response["ErrorCode"], response["ErrorMessage"]));
             }
 
             return response;
         }
 
         private HttpClient _client;
-        private HttpClient client
+        private HttpClient Client
         {
             get
             {
                 if (_client == null)
                 {
-                    _client = new HttpClient(new HttpClientHandler() { AutomaticDecompression = DecompressionMethods.Deflate | DecompressionMethods.GZip });
-                    _client.Timeout = TimeSpan.FromMinutes(5);
+                    _client = new HttpClient(new HttpClientHandler { AutomaticDecompression = DecompressionMethods.Deflate | DecompressionMethods.GZip })
+                        {
+                            Timeout = TimeSpan.FromMinutes(5)
+                        };
                 }
                 return _client;
             }
         }
 
-        private byte[] generateNonce()
+        private static byte[] GenerateNonce()
         {
 #if NETFX_CORE
             byte[] nonce;
             CryptographicBuffer.CopyToByteArray(CryptographicBuffer.GenerateRandom(16), out nonce);
             return nonce;
 #else
-            byte[] nonce = new byte[16];
-            RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+            var nonce = new byte[16];
+            var rng = new RNGCryptoServiceProvider();
             rng.GetBytes(nonce);
             return nonce;
 #endif
         }
 
-        private byte[] computeHash(byte[] source)
+        private static byte[] ComputeHash(byte[] source)
         {
 #if NETFX_CORE
             var bufSource = CryptographicBuffer.CreateFromByteArray(source);
@@ -130,10 +131,10 @@ namespace SyncFoundation.Client
 #endif
         }
 
-        private void addCredentials(JObject request)
+        private void AddCredentials(JObject request)
         {
             string now = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
-            byte[] nonce = generateNonce();
+            byte[] nonce = GenerateNonce();
             byte[] created = Encoding.UTF8.GetBytes(now);
             byte[] password = Encoding.UTF8.GetBytes(_password);
             byte[] digestSource = new byte[nonce.Length + created.Length + password.Length];
@@ -146,7 +147,7 @@ namespace SyncFoundation.Client
                 digestSource[created.Length + nonce.Length + i] = password[i];
 
 
-            byte[] digestBytes = computeHash(digestSource);
+            byte[] digestBytes = ComputeHash(digestSource);
             string digest = Convert.ToBase64String(digestBytes);
 
             request.Add("username", _username);
@@ -159,8 +160,8 @@ namespace SyncFoundation.Client
 
     internal class CompressedContent : HttpContent
     {
-        private HttpContent originalContent;
-        private string encodingType;
+        private readonly HttpContent _originalContent;
+        private readonly string _encodingType;
 
         public CompressedContent(HttpContent content, string encodingType)
         {
@@ -174,21 +175,21 @@ namespace SyncFoundation.Client
                 throw new ArgumentNullException("encodingType");
             }
 
-            originalContent = content;
-            this.encodingType = encodingType.ToLowerInvariant();
+            _originalContent = content;
+            _encodingType = encodingType.ToLowerInvariant();
 
-            if (this.encodingType != "gzip" && this.encodingType != "deflate")
+            if (_encodingType != "gzip" && _encodingType != "deflate")
             {
-                throw new InvalidOperationException(string.Format("Encoding '{0}' is not supported. Only supports gzip or deflate encoding.", this.encodingType));
+                throw new InvalidOperationException(string.Format("Encoding '{0}' is not supported. Only supports gzip or deflate encoding.", _encodingType));
             }
 
             // copy the headers from the original content
-            foreach (KeyValuePair<string, IEnumerable<string>> header in originalContent.Headers)
+            foreach (KeyValuePair<string, IEnumerable<string>> header in _originalContent.Headers)
             {
-                this.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                Headers.TryAddWithoutValidation(header.Key, header.Value);
             }
 
-            this.Headers.ContentEncoding.Add(encodingType);
+            Headers.ContentEncoding.Add(encodingType);
         }
 
         protected override bool TryComputeLength(out long length)
@@ -202,16 +203,16 @@ namespace SyncFoundation.Client
         {
             Stream compressedStream = null;
 
-            if (encodingType == "gzip")
+            if (_encodingType == "gzip")
             {
                 compressedStream = new GZipStream(stream, CompressionMode.Compress, leaveOpen: true);
             }
-            else if (encodingType == "deflate")
+            else if (_encodingType == "deflate")
             {
                 compressedStream = new DeflateStream(stream, CompressionMode.Compress, leaveOpen: true);
             }
 
-            return originalContent.CopyToAsync(compressedStream).ContinueWith(tsk =>
+            return _originalContent.CopyToAsync(compressedStream).ContinueWith(tsk =>
             {
                 if (compressedStream != null)
                 {

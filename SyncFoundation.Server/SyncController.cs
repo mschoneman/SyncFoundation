@@ -1,12 +1,8 @@
-﻿using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using SyncFoundation.Core;
 using SyncFoundation.Core.Interfaces;
 using System;
-using System.Collections.Generic;
 using System.Data;
-using System.IO;
-using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
@@ -17,8 +13,8 @@ namespace SyncFoundation.Server
 {
     public class SyncController : ApiController
     {
-        private IUserService _userService;
-        private ISyncSessionDbConnectionProvider _syncSessionDbConnectionProvider;
+        private readonly IUserService _userService;
+        private readonly ISyncSessionDbConnectionProvider _syncSessionDbConnectionProvider;
         private string _username;
 
         public SyncController(IUserService userService, ISyncSessionDbConnectionProvider syncSessionDbConnectionProvider)
@@ -40,32 +36,46 @@ namespace SyncFoundation.Server
                     int code = 1,
                     HttpStatusCode statusCode = HttpStatusCode.InternalServerError)
         {
-            var errResponse = Request.CreateResponse<ApiError>(statusCode,
-                                        new ApiError() { errorMessage = message, errorCode = code });
+            var errResponse = Request.CreateResponse(statusCode,
+                                        new ApiError { ErrorMessage = message, ErrorCode = code });
             throw new HttpResponseException(errResponse);
         }
 
-        private void validateRequest(JObject request, bool checkSession = true)
+        private void ValidateRequest(JObject request, bool checkSession = true)
         {
             DateTime min = DateTime.UtcNow - TimeSpan.FromHours(1);
             DateTime max = DateTime.UtcNow + TimeSpan.FromHours(1);
 
-            string username = (string)request["username"];
+            var username = (string)request["username"];
 
             string passwordEquivalent = _userService.GetPasswordEquivalent(username);
 
             if (passwordEquivalent == null)
-                ThrowSafeException("Invalid Username", 1, HttpStatusCode.BadRequest);
+                throw new HttpResponseException(Request.CreateResponse(HttpStatusCode.BadRequest,
+                                                                       new ApiError
+                                                                           {
+                                                                               ErrorMessage = "Invalid Username",
+                                                                               ErrorCode = 1
+                                                                           }));
 
-            DateTime createdDateTime = (DateTime)request["created"];
+            var createdDateTime = (DateTime)request["created"];
             if (createdDateTime < min || createdDateTime > max)
-                ThrowSafeException("Invalid Created Date/Time", 1, HttpStatusCode.BadRequest);
+                throw new HttpResponseException(Request.CreateResponse(HttpStatusCode.BadRequest,
+                                                                       new ApiError
+                                                                       {
+                                                                           ErrorMessage = "Invalid Created Date/Time",
+                                                                           ErrorCode = 1
+                                                                       }));
 
-
-            string nonceEncoded = (string)request["nonce"];
+            var nonceEncoded = (string)request["nonce"];
 
             if (nonceEncoded == _userService.GetLastNonce(username))
-                ThrowSafeException("Invalid Nonce", 1, HttpStatusCode.BadRequest);
+                throw new HttpResponseException(Request.CreateResponse(HttpStatusCode.BadRequest,
+                                                                       new ApiError
+                                                                       {
+                                                                           ErrorMessage = "Invalid Nonce",
+                                                                           ErrorCode = 1
+                                                                       }));
 
 
             byte[] nonce = Convert.FromBase64String(nonceEncoded);
@@ -83,8 +93,8 @@ namespace SyncFoundation.Server
                 digestSource[created.Length + nonce.Length + i] = password[i];
 
             byte[] digestBytes = new SHA1Managed().ComputeHash(digestSource);
-            string computedDigest = Convert.ToBase64String(digestBytes);
-            string digestEncoded = (string)request["digest"];
+            var computedDigest = Convert.ToBase64String(digestBytes);
+            var digestEncoded = (string)request["digest"];
 
             if (computedDigest != digestEncoded)
                 ThrowSafeException("Invalid Username", 1, HttpStatusCode.BadRequest);
@@ -95,7 +105,7 @@ namespace SyncFoundation.Server
 
             if (checkSession)
             {
-                string sessionId = (string)request["sessionID"];
+                var sessionId = (string)request["sessionID"];
                 if (sessionId != _userService.GetSessionId(_username))
                     ThrowSafeException("Invalid SessionID", 1, HttpStatusCode.BadRequest);
 
@@ -109,7 +119,7 @@ namespace SyncFoundation.Server
         {
             var resp = Request.CreateResponse(HttpStatusCode.OK, string.Empty);
 
-            validateRequest(request, false);
+            ValidateRequest(request, false);
 
             if (_userService.GetSessionId((string)request["username"]) != null)
                 ThrowSafeException("Session In Progress", 1, HttpStatusCode.ServiceUnavailable);
@@ -136,7 +146,7 @@ namespace SyncFoundation.Server
         {
             var resp = Request.CreateResponse(HttpStatusCode.OK, string.Empty);
 
-            validateRequest(request);
+            ValidateRequest(request);
 
             using (ISyncableStore store = _userService.GetSyncableStore(_username))
             using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_userService.GetSessionId(_username)))
@@ -156,7 +166,7 @@ namespace SyncFoundation.Server
         {
             var resp = Request.CreateResponse(HttpStatusCode.OK, string.Empty);
 
-            validateRequest(request);
+            ValidateRequest(request);
 
             using (ISyncableStore store = _userService.GetSyncableStore(_username))
             using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_userService.GetSessionId(_username)))
@@ -174,7 +184,7 @@ namespace SyncFoundation.Server
         {
             var resp = Request.CreateResponse(HttpStatusCode.OK, string.Empty);
 
-            validateRequest(request);
+            ValidateRequest(request);
 
             using (ISyncableStore store = _userService.GetSyncableStore(_username))
             using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_userService.GetSessionId(_username)))
@@ -191,7 +201,7 @@ namespace SyncFoundation.Server
         {
             var resp = Request.CreateResponse(HttpStatusCode.OK, string.Empty);
 
-            validateRequest(request);
+            ValidateRequest(request);
 
             using (ISyncableStore store = _userService.GetSyncableStore(_username))
             using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_userService.GetSessionId(_username)))
@@ -209,7 +219,7 @@ namespace SyncFoundation.Server
         {
             var resp = Request.CreateResponse(HttpStatusCode.OK, string.Empty);
 
-            validateRequest(request);
+            ValidateRequest(request);
 
             using (ISyncableStore store = _userService.GetSyncableStore(_username))
             using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_userService.GetSessionId(_username)))
@@ -226,7 +236,7 @@ namespace SyncFoundation.Server
         {
             var resp = Request.CreateResponse(HttpStatusCode.OK, string.Empty);
 
-            validateRequest(request);
+            ValidateRequest(request);
 
             using (ISyncableStore store = _userService.GetSyncableStore(_username))
             using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_userService.GetSessionId(_username)))
@@ -244,7 +254,7 @@ namespace SyncFoundation.Server
 
             var resp = Request.CreateResponse(HttpStatusCode.OK, string.Empty);
 
-            validateRequest(request);
+            ValidateRequest(request);
 
             using (ISyncableStore store = _userService.GetSyncableStore(_username))
             using (IDbConnection connection = _syncSessionDbConnectionProvider.GetSyncSessionDbConnection(_userService.GetSessionId(_username)))

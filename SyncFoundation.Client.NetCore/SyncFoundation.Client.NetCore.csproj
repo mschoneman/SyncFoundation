@@ -108,8 +108,8 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\SyncFoundation.Client\DbCommandExtensions.cs">
-      <Link>DbCommandExtensions.cs</Link>
+    <Compile Include="..\SyncFoundation.Client\DbExtensions.cs">
+      <Link>DbExtensions.cs</Link>
     </Compile>
     <Compile Include="..\SyncFoundation.Client\HttpSyncTransport.cs">
       <Link>HttpSyncTransport.cs</Link>
